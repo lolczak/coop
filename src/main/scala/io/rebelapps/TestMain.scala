@@ -2,6 +2,7 @@ package io.rebelapps
 
 import cats.implicits._
 import io.rebelapps.coop.data.Coroutine.{delay, pure}
+import io.rebelapps.coop.execution.RunLoop
 
 object TestMain extends App {
 
@@ -13,5 +14,9 @@ object TestMain extends App {
     } yield result
 
   println(fiber map(_ - 5))
+
+  val callStack = RunLoop.createCallStack(fiber)
+
+  callStack foreach println
 
 }
