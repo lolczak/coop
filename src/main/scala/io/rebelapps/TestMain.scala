@@ -19,4 +19,8 @@ object TestMain extends App {
 
   callStack foreach println
 
+  val result = RunLoop.go(fiber map(_ - 5))
+
+  println(result)
+
 }

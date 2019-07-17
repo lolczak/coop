@@ -20,7 +20,8 @@ case class FlatMap[A, +B](fa: Coroutine[A], f: A => Coroutine[B]) extends Corout
 
 case class RaiseError(exception: Exception) extends Coroutine[Nothing]
 
-//todo
+//todo spawn
+//todo channel
 
 object Coroutine extends CoroutineInstances {
 

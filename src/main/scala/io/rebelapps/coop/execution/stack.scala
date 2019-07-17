@@ -1,11 +1,17 @@
 package io.rebelapps.coop.execution
 
 import cats.data.State
-import shapeless.{:+:, CNil}
+import io.rebelapps.coop.data.Coroutine
 
 object stack {
 
-  type Frame = Eval :+: Continuation :+: Val :+: CNil
+  sealed trait Frame
+
+  case class Val(value: Any) extends Frame
+
+  case class Eval(thunk: () => Any) extends Frame
+
+  case class Continuation(f: Any => Coroutine[Any]) extends Frame
 
   type CallStack = List[Frame]
 
@@ -14,5 +20,9 @@ object stack {
   def push(frame: Frame): State[CallStack, Unit] = State.modify(tail => frame :: tail)
 
   def pop(): State[CallStack, Frame] = State(stack => stack.tail -> stack.head)
+
+  def isEmpty(): State[CallStack, Boolean] = State.inspect(_.isEmpty)
+
+  def pushStack(top: CallStack): State[CallStack, Unit] = State { stack => ((top ++ stack), ()) }
 
 }
