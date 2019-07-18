@@ -8,7 +8,8 @@ import cats.implicits._
 
 object RunLoop {
 
-//  def step[A](coroutine: Coroutine[A])
+  private val M = Monad[State[CallStack, ?]]
+  import M._
 
   def createCallStack(coroutine: Coroutine[Any]): CallStack = {
     //todo tail rec version
@@ -35,9 +36,31 @@ object RunLoop {
       ._1
   }
 
+  def step[A](): State[CallStack, Option[Any]] =
+    for {
+      frame <- pop()
+      result <- frame match {
+        case Return(value) =>
+          def cont(): State[CallStack, Option[Any]] = {
+            for {
+              next <- pop()
+              Continuation(f) = next
+              _    <- pushStack(createCallStack(f(value)))
+            } yield None
+          }
+          ifM(isEmpty())(State.pure(Some(value): Option[Any]), cont())
+
+        case Evaluation(thunk) =>
+          val value = thunk()
+          ifM(isEmpty())(State.pure(Some(value): Option[Any]), push(Return(value)) >> State.pure(None: Option[Any]))
+
+        case Continuation(f) =>
+          throw new RuntimeException("Impossible")
+
+      }
+    } yield result
+
   def go[A](coroutine: Coroutine[A]): A = {
-    val M = Monad[State[CallStack, ?]]
-    import M._
     val initialStack = createCallStack(coroutine)
 
     def loop(maybeValue: Option[Any]): State[CallStack, Option[Any]] =
