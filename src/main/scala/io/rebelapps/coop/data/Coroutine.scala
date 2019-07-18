@@ -10,7 +10,7 @@ sealed trait Coroutine[+A] {
 
 case class Pure[+A](value: A) extends Coroutine[A]
 
-case class Delay[+A](thunk: () => A) extends Coroutine[A]
+case class Eval[+A](thunk: () => A) extends Coroutine[A]
 
 case class Async[+A](runner: (Either[Exception, A] => Unit) => Unit) extends Coroutine[A]
 
@@ -22,12 +22,13 @@ case class RaiseError(exception: Exception) extends Coroutine[Nothing]
 
 //todo spawn
 //todo channel
+//todo loop
 
 object Coroutine extends CoroutineInstances {
 
   def pure[A](value: A): Coroutine[A] = Pure(value)
 
-  def delay[A](thunk: => A): Coroutine[A] = Delay(thunk _)
+  def eval[A](thunk: => A): Coroutine[A] = Eval(thunk _)
 
 
 }

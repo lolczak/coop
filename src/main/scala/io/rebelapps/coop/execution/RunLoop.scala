@@ -22,7 +22,7 @@ object RunLoop {
         case Pure(value) =>
           push(Return(value))
 
-        case Delay(thunk) =>
+        case Eval(thunk) =>
           push(Evaluation(thunk))
 
         case _ => State.set(emptyStack) //todo async, raise error
