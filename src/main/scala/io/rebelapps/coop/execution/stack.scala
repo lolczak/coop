@@ -7,15 +7,19 @@ object stack {
 
   sealed trait Frame
 
-  case class Val(value: Any) extends Frame
+  case class Return(value: Any) extends Frame
 
-  case class Eval(thunk: () => Any) extends Frame
+  case class Evaluation(thunk: () => Any) extends Frame
 
   case class Continuation(f: Any => Coroutine[Any]) extends Frame
+
+  //todo suspension
 
   type CallStack = List[Frame]
 
   val emptyStack = List.empty[Frame]
+
+  def peek() = ???
 
   def push(frame: Frame): State[CallStack, Unit] = State.modify(tail => frame :: tail)
 

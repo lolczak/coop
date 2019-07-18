@@ -10,7 +10,7 @@ val scalaCheckVersion = "1.14.0"
 lazy val testLibs = Seq(
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.0",
   "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
-    "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test
+  "org.scalacheck" %% "scalacheck" % scalaCheckVersion % Test
 )
 
 libraryDependencies ++= Seq(

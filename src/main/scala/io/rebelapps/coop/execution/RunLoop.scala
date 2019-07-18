@@ -4,7 +4,6 @@ import cats.Monad
 import cats.data.State
 import io.rebelapps.coop.data._
 import io.rebelapps.coop.execution.stack._
-import shapeless._
 import cats.implicits._
 
 object RunLoop {
@@ -21,12 +20,12 @@ object RunLoop {
           push(Continuation(f)) >> loop(fa)
 
         case Pure(value) =>
-          push(Val(value))
+          push(Return(value))
 
         case Delay(thunk) =>
-          push(Eval(thunk))
+          push(Evaluation(thunk))
 
-        case _ => State.set(emptyStack)
+        case _ => State.set(emptyStack) //todo async, raise error
       }
 
     loop(coroutine)
@@ -42,10 +41,10 @@ object RunLoop {
       for {
         frame <- pop()
         result <- frame match {
-          case Val(value) =>
+          case Return(value) =>
             Monad[State[CallStack, ?]].ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
 
-          case Eval(thunk) =>
+          case Evaluation(thunk) =>
             val value = thunk()
             Monad[State[CallStack, ?]].ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
 
