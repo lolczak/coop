@@ -11,6 +11,7 @@ object RunLoop {
 //  def step[A](coroutine: Coroutine[A])
 
   def createCallStack(coroutine: Coroutine[Any]): CallStack = {
+    //todo tail rec version
     def loop(coroutine: Coroutine[Any]): State[CallStack, Unit]  =
       coroutine match {
         case Map(fa: Coroutine[Any], f: (Any => Any)) =>
@@ -35,6 +36,8 @@ object RunLoop {
   }
 
   def go[A](coroutine: Coroutine[A]): A = {
+    val M = Monad[State[CallStack, ?]]
+    import M._
     val initialStack = createCallStack(coroutine)
 
     def loop(maybeValue: Option[Any]): State[CallStack, Option[Any]] =
@@ -42,11 +45,11 @@ object RunLoop {
         frame <- pop()
         result <- frame match {
           case Return(value) =>
-            Monad[State[CallStack, ?]].ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
+            ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
 
           case Evaluation(thunk) =>
             val value = thunk()
-            Monad[State[CallStack, ?]].ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
+            ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
 
           case Continuation(f) =>
             val result = f(maybeValue.get)
