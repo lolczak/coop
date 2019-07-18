@@ -45,9 +45,9 @@ object RunLoop {
         case Return(value) =>
           def cont(): State[CallStack, Option[Any]] = {
             for {
-              next <- pop()
-              Continuation(f) = next
-              _    <- pushStack(createCallStack(f(value)))
+              next            <- pop()
+              Continuation(f)  = next
+              _               <- pushStack(createCallStack(f(value)))
             } yield None
           }
           ifM(isEmpty())(State.pure(Some(value): Option[Any]), cont())
