@@ -6,6 +6,8 @@ import io.rebelapps.coop.data._
 import io.rebelapps.coop.execution.stack._
 import cats.implicits._
 
+import scala.annotation.tailrec
+
 object RunLoop {
 
   private val M = Monad[State[CallStack, ?]]
@@ -36,7 +38,7 @@ object RunLoop {
       ._1
   }
 
-  def step[A](): State[CallStack, Option[Any]] =
+  def step(): State[CallStack, Option[Any]] =
     for {
       frame <- pop()
       result <- frame match {
@@ -63,29 +65,15 @@ object RunLoop {
   def go[A](coroutine: Coroutine[A]): A = {
     val initialStack = createCallStack(coroutine)
 
-    def loop(maybeValue: Option[Any]): State[CallStack, Option[Any]] =
-      for {
-        frame <- pop()
-        result <- frame match {
-          case Return(value) =>
-            ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
+    @tailrec
+    def loop(stack: CallStack): (CallStack, Any) = {
+      val (current, result) = step().run(stack).value
+      if (result.isDefined) (current, result.get)
+      else loop(current)
+    }
 
-          case Evaluation(thunk) =>
-            val value = thunk()
-            ifM(isEmpty())(State.pure(Some(value): Option[Any]), loop(Some(value)))
-
-          case Continuation(f) =>
-            val result = f(maybeValue.get)
-            val top = createCallStack(result)
-            pushStack(top) >> loop(None)
-        }
-      } yield result
-
-    loop(None)
-      .run(initialStack)
-      .value
+    loop(initialStack)
       ._2
-      .get
       .asInstanceOf[A]
   }
 
