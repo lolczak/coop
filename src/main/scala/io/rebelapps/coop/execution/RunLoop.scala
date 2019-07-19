@@ -40,7 +40,7 @@ object RunLoop {
 
   def step(): State[CallStack, Option[Any]] =
     for {
-      frame <- pop()
+      frame  <- pop()
       result <- frame match {
         case Return(value) =>
           def cont(): State[CallStack, Option[Any]] = {
@@ -65,14 +65,13 @@ object RunLoop {
   def go[A](coroutine: Coroutine[A]): A = {
     val initialStack = createCallStack(coroutine)
 
-    @tailrec
-    def loop(stack: CallStack): (CallStack, Any) = {
-      val (current, result) = step().run(stack).value
-      if (result.isDefined) (current, result.get)
-      else loop(current)
-    }
+    val go = () => step().map(_.toRight(()))
 
-    loop(initialStack)
+    val op = M.tailRecM(())(_ => go())
+
+    op
+      .run(initialStack)
+      .value
       ._2
       .asInstanceOf[A]
   }

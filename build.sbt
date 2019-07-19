@@ -35,7 +35,6 @@ scalacOptions ++= Seq(
     "-language:existentials",
     "-language:postfixOps",
     "-Xfatal-warnings",
-    "-Yno-adapted-args",
     "-Ywarn-value-discard"
 )
 
