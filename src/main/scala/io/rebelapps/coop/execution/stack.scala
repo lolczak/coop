@@ -7,7 +7,7 @@ object stack {
 
   sealed trait Frame
 
-  case class Return(value: Any) extends Frame
+  case class Val(value: Any) extends Frame
 
   case class Evaluation(thunk: () => Any) extends Frame
 

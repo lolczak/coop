@@ -6,8 +6,6 @@ import io.rebelapps.coop.data._
 import io.rebelapps.coop.execution.stack._
 import cats.implicits._
 
-import scala.annotation.tailrec
-
 object RunLoop {
 
   private val M = Monad[State[CallStack, ?]]
@@ -24,7 +22,7 @@ object RunLoop {
           push(Continuation(f)) >> loop(fa)
 
         case Pure(value) =>
-          push(Return(value))
+          push(Val(value))
 
         case Eval(thunk) =>
           push(Evaluation(thunk))
@@ -38,23 +36,23 @@ object RunLoop {
       ._1
   }
 
-  def step(): State[CallStack, Option[Any]] =
+  def step(): State[CallStack, Either[Alive.type, Result]] =
     for {
       frame  <- pop()
       result <- frame match {
-        case Return(value) =>
-          def cont(): State[CallStack, Option[Any]] = {
+        case Val(value) =>
+          def cont(): State[CallStack, Either[Alive.type, Result]] = {
             for {
               next            <- pop()
               Continuation(f)  = next
               _               <- pushStack(createCallStack(f(value)))
-            } yield None
+            } yield Alive.asLeft
           }
-          ifM(isEmpty())(State.pure(Some(value): Option[Any]), cont())
+          ifM(isEmpty())(State.pure((Return(value): Result).asRight[Alive.type]), cont())
 
         case Evaluation(thunk) =>
           val value = thunk()
-          ifM(isEmpty())(State.pure(Some(value): Option[Any]), push(Return(value)) >> State.pure(None: Option[Any]))
+          ifM(isEmpty())(State.pure((Return(value): Result).asRight[Alive.type]), push(Val(value)) >> State.pure(Alive.asLeft[Result]))
 
         case Continuation(f) =>
           throw new RuntimeException("Impossible")
@@ -65,15 +63,15 @@ object RunLoop {
   def run[A](coroutine: Coroutine[A]): A = {
     val initialStack = createCallStack(coroutine)
 
-    val go = () => step().map(_.toRight(()))
+    val op = M.tailRecM(Alive)(_ => step())
 
-    val op = M.tailRecM(())(_ => go())
+    val Return(result) =
+      op
+        .run(initialStack)
+        .value
+        ._2
 
-    op
-      .run(initialStack)
-      .value
-      ._2
-      .asInstanceOf[A]
+    result.asInstanceOf[A]
   }
 
 
