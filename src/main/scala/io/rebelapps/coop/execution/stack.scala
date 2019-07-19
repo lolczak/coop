@@ -13,6 +13,8 @@ object stack {
 
   case class Continuation(f: Any => Coroutine[Any]) extends Frame
 
+  case class AsyncCall(runner: (Either[Exception, Any] => Unit) => Unit) extends Frame
+
   //todo suspension
 
   type CallStack = List[Frame]

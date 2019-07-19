@@ -10,7 +10,7 @@ case class Pure[+A](value: A) extends Coroutine[A]
 
 case class Eval[+A](thunk: () => A) extends Coroutine[A]
 
-case class Async[+A](runner: (Either[Exception, A] => Unit) => Unit) extends Coroutine[A]
+case class Async[+A](go: (Either[Exception, A] => Unit) => Unit) extends Coroutine[A]
 
 case class Map[A, +B](coroutine: Coroutine[A], f: A => B) extends Coroutine[B]
 
@@ -29,5 +29,7 @@ object Coroutine extends CoroutineInstances {
   def eval[A](thunk: => A): Coroutine[A] = Eval(thunk _)
 
   def effect[A](body: => A): Coroutine[A] = Eval(body _)
+
+  def async[A](go: (Either[Exception, A] => Unit) => Unit): Coroutine[A] = Async(go)
 
 }

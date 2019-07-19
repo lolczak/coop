@@ -1,5 +1,8 @@
 package io.rebelapps.coop.execution
 
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
+
 import cats.Monad
 import cats.data.State
 import io.rebelapps.coop.data._
@@ -12,8 +15,8 @@ object RunLoop {
   import M._
 
   def createCallStack(coroutine: Coroutine[Any]): CallStack = {
-    def go(coroutine: Coroutine[Any]): State[CallStack, Either[Coroutine[Any], Unit]]  =
-      coroutine match {
+    def go(current: Coroutine[Any]): State[CallStack, Either[Coroutine[Any], Unit]]  =
+      current match {
         case Map(fa: Coroutine[Any], f: (Any => Any)) =>
           push(Continuation(f andThen Pure.apply)) >> State.pure(fa.asLeft)
 
@@ -26,6 +29,9 @@ object RunLoop {
         case Eval(thunk) =>
           push(Evaluation(thunk)).map(_.asRight)
 
+        case Async(go) =>
+          push(AsyncCall(go)).map(_.asRight)
+
         case _ => State.set(emptyStack).map(_.asRight) //todo async, raise error
       }
 
@@ -36,7 +42,7 @@ object RunLoop {
       ._1
   }
 
-  def step(): State[CallStack, Either[Alive.type, Result]] =
+  def step(exec: AsyncRunner): State[CallStack, Either[Alive.type, Result]] =
     for {
       frame  <- pop()
       result <- frame match {
@@ -54,6 +60,10 @@ object RunLoop {
           val value = thunk()
           ifM(isEmpty())(State.pure((Return(value): Result).asRight[Alive.type]), push(Val(value)) >> State.pure(Alive.asLeft[Result]))
 
+        case AsyncCall(go) =>
+          val reqId = exec(go)
+          State.pure[CallStack, Either[Alive.type, Result]]((Suspended(reqId): Result).asRight[Alive.type])
+
         case Continuation(f) =>
           throw new RuntimeException("Impossible")
 
@@ -61,17 +71,36 @@ object RunLoop {
     } yield result
 
   def run[A](coroutine: Coroutine[A]): A = {
-    val initialStack = createCallStack(coroutine)
+    var stack = createCallStack(coroutine)
 
-    val op = M.tailRecM(Alive)(_ => step())
+    val ref = new AtomicReference[Option[Any]](None)
 
-    val Return(result) =
-      op
-        .run(initialStack)
-        .value
-        ._2
+    val exec: AsyncRunner = { go =>
+       go {
+        case Left(ex) => throw ex
+        case Right(r) => ref.set(Some(r))
+      }
+      UUID.randomUUID()
+    }
 
-    result.asInstanceOf[A]
+    do {
+      val op = M.tailRecM(Alive)(_ => step(exec))
+
+      val (currentStack, result) = op .run(stack).value
+      result match {
+        case Return(value) =>
+          return value.asInstanceOf[A]
+
+        case Suspended(requestId) =>
+          while (ref.get().isEmpty) {
+            Thread.sleep(100)
+          }
+          val newStack = push(Val(ref.get().get)).run(currentStack).value._1
+          stack = newStack
+      }
+
+    } while (true)
+    ().asInstanceOf[A]
   }
 
 
