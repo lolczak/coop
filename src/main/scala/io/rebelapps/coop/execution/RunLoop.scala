@@ -12,25 +12,25 @@ object RunLoop {
   import M._
 
   def createCallStack(coroutine: Coroutine[Any]): CallStack = {
-    //todo tail rec version
-    def loop(coroutine: Coroutine[Any]): State[CallStack, Unit]  =
+    def go(coroutine: Coroutine[Any]): State[CallStack, Either[Coroutine[Any], Unit]]  =
       coroutine match {
         case Map(fa: Coroutine[Any], f: (Any => Any)) =>
-          push(Continuation(f andThen Pure.apply)) >> loop(fa)
+          push(Continuation(f andThen Pure.apply)) >> State.pure(fa.asLeft)
 
         case FlatMap(fa: Coroutine[Any], f: (Any => Coroutine[Any])) =>
-          push(Continuation(f)) >> loop(fa)
+          push(Continuation(f)) >> State.pure(fa.asLeft)
 
         case Pure(value) =>
-          push(Val(value))
+          push(Val(value)).map(_.asRight)
 
         case Eval(thunk) =>
-          push(Evaluation(thunk))
+          push(Evaluation(thunk)).map(_.asRight)
 
-        case _ => State.set(emptyStack) //todo async, raise error
+        case _ => State.set(emptyStack).map(_.asRight) //todo async, raise error
       }
 
-    loop(coroutine)
+    val op = M.tailRecM(coroutine)(go)
+    op
       .run(emptyStack)
       .value
       ._1
