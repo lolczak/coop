@@ -62,7 +62,7 @@ object RunLoop {
       }
     } yield result
 
-  def go[A](coroutine: Coroutine[A]): A = {
+  def run[A](coroutine: Coroutine[A]): A = {
     val initialStack = createCallStack(coroutine)
 
     val go = () => step().map(_.toRight(()))

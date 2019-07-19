@@ -1,7 +1,5 @@
 package io.rebelapps.coop.data
 
-import io.rebelapps.coop.control.CoroutineInstances
-
 sealed trait Coroutine[+A] {
 
   def map[B](f: A => B): Coroutine[B] = Map(this, f)
@@ -30,5 +28,6 @@ object Coroutine extends CoroutineInstances {
 
   def eval[A](thunk: => A): Coroutine[A] = Eval(thunk _)
 
+  def effect[A](body: => A): Coroutine[A] = Eval(body _)
 
 }

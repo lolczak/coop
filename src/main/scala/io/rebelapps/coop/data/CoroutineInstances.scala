@@ -1,7 +1,7 @@
-package io.rebelapps.coop.control
+package io.rebelapps.coop.data
 
 import cats.Monad
-import io.rebelapps.coop.data.Coroutine
+import io.rebelapps.coop.control.CoroutineMonad
 
 trait CoroutineInstances {
 
