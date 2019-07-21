@@ -16,7 +16,7 @@ case class Map[A, +B](coroutine: Coroutine[A], f: A => B) extends Coroutine[B]
 
 case class FlatMap[A, +B](fa: Coroutine[A], f: A => Coroutine[B]) extends Coroutine[B]
 
-case class RaiseError(exception: Exception) extends Coroutine[Nothing]
+//case class RaiseError(exception: Exception) extends Coroutine[Nothing]
 
 //todo spawn
 //todo channel

@@ -1,9 +1,6 @@
 package io.rebelapps.coop
 
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
-
-import io.rebelapps.coop.data.Async
 
 package object execution {
 

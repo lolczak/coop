@@ -32,7 +32,7 @@ object RunLoop {
         case Async(go) =>
           push(AsyncCall(go)).map(_.asRight)
 
-        case _ => State.set(emptyStack).map(_.asRight) //todo async, raise error
+        case _ => State.set(emptyStack).map(_.asRight) //todo raise error
       }
 
     val op = M.tailRecM(coroutine)(go)
@@ -76,7 +76,7 @@ object RunLoop {
     val ref = new AtomicReference[Option[Any]](None)
 
     val exec: AsyncRunner = { go =>
-       go {
+      go {
         case Left(ex) => throw ex
         case Right(r) => ref.set(Some(r))
       }
