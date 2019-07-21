@@ -10,25 +10,30 @@ import scala.concurrent.duration._
 
 object TestMain extends App {
 
-  val fiber =
+  val fiber1 =
     for {
       value   <- pure { 123 }
+      next    <- async[Int] { cb => new Thread(() => { cb(Right(value+1)) }).start() }
+      next2     = next + 1
+      result   <- eval { next2 + 3 }
+    } yield result
+
+  val fiber2 =
+    for {
+      value   <- pure { 23 }
       next     = value + 1
       next2   <- eval { next + 3 }
       result  <- async[Int] { cb => new Thread(() => { cb(Right(next2+1)) }).start() }
     } yield result
 
-  println(fiber map(_ + 5))
+  val future1 = Scheduler.run(fiber1 map(_ + 5))
+  val future2 = Scheduler.run(fiber2 map(_ + 5))
 
-  val callStack = RunLoop.createCallStack(fiber)
+  val result1 = Await.result(future1, 10 seconds)
+  val result2 = Await.result(future2, 10 seconds)
 
-  callStack foreach println
-
-  val future = Scheduler.run(fiber map(_ + 5))
-
-  val result = Await.result(future, 10 seconds)
-
-  println(result)
+  println(result1)
+  println(result2)
 
   Scheduler.shutdown()
 
