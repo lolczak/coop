@@ -30,6 +30,8 @@ object TestMain extends App {
 
   println(result)
 
+  Scheduler.shutdown()
+
   //backlog
   //todo 1)async handling
   //todo 2)channels

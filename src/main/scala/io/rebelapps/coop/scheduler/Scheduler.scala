@@ -72,5 +72,6 @@ object Scheduler {
     requestId
   }
 
+  def shutdown() = pool.shutdown()
 
 }
