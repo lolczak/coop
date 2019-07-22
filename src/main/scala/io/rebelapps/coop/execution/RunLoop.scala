@@ -32,6 +32,9 @@ object RunLoop {
         case Async(go) =>
           push(AsyncCall(go)).map(_.asRight)
 
+        case Spawn(c) =>
+          push(NewFiber(c)).map(_.asRight)
+
         case _ => State.set(emptyStack).map(_.asRight) //todo raise error
       }
 
@@ -64,44 +67,47 @@ object RunLoop {
           val reqId = exec(go)
           State.pure[CallStack, Either[Alive.type, Result]]((Suspended(reqId): Result).asRight[Alive.type])
 
+        case NewFiber(coroutine) =>
+          push(Val(())) >> State.pure[CallStack, Either[Alive.type, Result]]((CreateFiber(coroutine): Result).asRight[Alive.type])
+
         case Continuation(f) =>
           throw new RuntimeException("Impossible")
 
       }
     } yield result
 
-  def run[A](coroutine: Coroutine[A]): A = {
-    var stack = createCallStack(coroutine)
-
-    val ref = new AtomicReference[Option[Any]](None)
-
-    val exec: AsyncRunner = { go =>
-      go {
-        case Left(ex) => throw ex
-        case Right(r) => ref.set(Some(r))
-      }
-      UUID.randomUUID()
-    }
-
-    do {
-      val op = M.tailRecM(Alive)(_ => step(exec))
-
-      val (currentStack, result) = op .run(stack).value
-      result match {
-        case Return(value) =>
-          return value.asInstanceOf[A]
-
-        case Suspended(requestId) =>
-          while (ref.get().isEmpty) {
-            Thread.sleep(100)
-          }
-          val newStack = push(Val(ref.get().get)).run(currentStack).value._1
-          stack = newStack
-      }
-
-    } while (true)
-    ().asInstanceOf[A]
-  }
+//  def run[A](coroutine: Coroutine[A]): A = {
+//    var stack = createCallStack(coroutine)
+//
+//    val ref = new AtomicReference[Option[Any]](None)
+//
+//    val exec: AsyncRunner = { go =>
+//      go {
+//        case Left(ex) => throw ex
+//        case Right(r) => ref.set(Some(r))
+//      }
+//      UUID.randomUUID()
+//    }
+//
+//    do {
+//      val op = M.tailRecM(Alive)(_ => step(exec))
+//
+//      val (currentStack, result) = op .run(stack).value
+//      result match {
+//        case Return(value) =>
+//          return value.asInstanceOf[A]
+//
+//        case Suspended(requestId) =>
+//          while (ref.get().isEmpty) {
+//            Thread.sleep(100)
+//          }
+//          val newStack = push(Val(ref.get().get)).run(currentStack).value._1
+//          stack = newStack
+//      }
+//
+//    } while (true)
+//    ().asInstanceOf[A]
+//  }
 
 
 }

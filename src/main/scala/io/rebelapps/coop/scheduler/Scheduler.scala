@@ -1,24 +1,43 @@
 package io.rebelapps.coop.scheduler
 
 import java.util.UUID
-import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.{RejectedExecutionHandler, ScheduledThreadPoolExecutor, ThreadFactory, ThreadPoolExecutor}
 
 import cats.Monad
 import cats.data.State
 import io.rebelapps.coop.data.Coroutine
 import io.rebelapps.coop.execution.RunLoop.{createCallStack, step}
 import io.rebelapps.coop.execution.stack.{CallStack, Val, push}
-import io.rebelapps.coop.execution.{Alive, AsyncRunner, Return, Suspended}
+import io.rebelapps.coop.execution._
 
 import scala.concurrent.{Future, Promise}
 
 object Scheduler {
 
-  private val pool = new ScheduledThreadPoolExecutor(1)
+  private val threadFactory = new ThreadFactory {
 
+    private val count = new AtomicInteger(1)
+
+    override def newThread(r: Runnable): Thread = {
+      val thread = new Thread(r)
+      thread.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler {
+        override def uncaughtException(t: Thread, e: Throwable): Unit = println(s"Exception caught in thread ${thread.getName}: $e")
+      })
+      thread.setName(s"coop-${count.getAndAdd(1)}")
+      thread
+    }
+  }
+
+  private val pool = new ScheduledThreadPoolExecutor(1, threadFactory)
+
+  @volatile
   private var running: Vector[Fiber[Any]] = Vector.empty
+
+  @volatile
   private var ready: Vector[Fiber[Any]] = Vector.empty
 
+  @volatile
   private var suspended: Map[UUID, Fiber[Any]] = Map.empty
 
   def run[A](coroutine: Coroutine[A]): Future[A] = {
@@ -51,7 +70,18 @@ object Scheduler {
           running = running.filter(_ != fiber)
           val currentFiber = fiber.copy(callStack = currentStack)
           suspended = suspended + (requestId -> currentFiber)
+
+        case CreateFiber(coroutine) =>
+          println("creating fiber")
+          running = running.filter(_ != fiber)
+          val currentFiber = fiber.copy(callStack = currentStack)
+          currentStack foreach println
+          ready = currentFiber +: ready
+          run(coroutine)
+          pool.execute(() => runLoop())
       }
+    } else {
+      println("nothing to do")
     }
   }
 
@@ -72,6 +102,6 @@ object Scheduler {
     requestId
   }
 
-  def shutdown() = pool.shutdown()
+  def shutdown(): Unit = pool.shutdown()
 
 }

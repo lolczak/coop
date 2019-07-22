@@ -2,7 +2,6 @@ package io.rebelapps
 
 import cats.implicits._
 import io.rebelapps.coop.data.Coroutine._
-import io.rebelapps.coop.execution.RunLoop
 import io.rebelapps.coop.scheduler.Scheduler
 
 import scala.concurrent.Await
@@ -14,8 +13,9 @@ object TestMain extends App {
     for {
       value   <- pure { 123 }
       next    <- async[Int] { cb => new Thread(() => { cb(Right(value+1)) }).start() }
-      next2     = next + 1
-      result   <- eval { next2 + 3 }
+      next2    = next + 1
+      _       <- spawn { effect { println("spawned") }  }
+      result  <- eval { next2 + 3 }
     } yield result
 
   val fiber2 =
@@ -27,13 +27,13 @@ object TestMain extends App {
     } yield result
 
   val future1 = Scheduler.run(fiber1 map(_ + 5))
-  val future2 = Scheduler.run(fiber2 map(_ + 5))
+//  val future2 = Scheduler.run(fiber2 map(_ + 5))
 
   val result1 = Await.result(future1, 10 seconds)
-  val result2 = Await.result(future2, 10 seconds)
+//  val result2 = Await.result(future2, 10 seconds)
 
   println(result1)
-  println(result2)
+//  println(result2)
 
   Scheduler.shutdown()
 

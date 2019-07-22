@@ -15,6 +15,8 @@ object stack {
 
   case class AsyncCall(runner: (Either[Exception, Any] => Unit) => Unit) extends Frame
 
+  case class NewFiber(coroutine: Coroutine[Any]) extends Frame
+
   //todo suspension
 
   type CallStack = List[Frame]

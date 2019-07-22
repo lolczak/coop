@@ -16,9 +16,10 @@ case class Map[A, +B](coroutine: Coroutine[A], f: A => B) extends Coroutine[B]
 
 case class FlatMap[A, +B](fa: Coroutine[A], f: A => Coroutine[B]) extends Coroutine[B]
 
+case class Spawn(coroutine: Coroutine[_]) extends Coroutine[Unit]
+
 //case class RaiseError(exception: Exception) extends Coroutine[Nothing]
 
-//todo spawn
 //todo channel
 //todo loop
 
@@ -31,5 +32,7 @@ object Coroutine extends CoroutineInstances {
   def effect[A](body: => A): Coroutine[A] = Eval(body _)
 
   def async[A](go: (Either[Exception, A] => Unit) => Unit): Coroutine[A] = Async(go)
+
+  def spawn[A](coroutine: Coroutine[A]): Coroutine[Unit] = Spawn(coroutine)
 
 }
