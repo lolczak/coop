@@ -7,17 +7,9 @@ object stack {
 
   sealed trait Frame
 
-  case class Val(value: Any) extends Frame
-
-  case class Evaluation(thunk: () => Any) extends Frame
+  case class Ret(value: Any) extends Frame
 
   case class Continuation(f: Any => Coroutine[Any]) extends Frame
-
-  case class AsyncCall(runner: (Either[Exception, Any] => Unit) => Unit) extends Frame
-
-  case class NewFiber(coroutine: Coroutine[Any]) extends Frame
-
-  //todo suspension
 
   type CallStack = List[Frame]
 
