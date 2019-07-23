@@ -37,6 +37,10 @@ object RunLoop {
         val reqId = exec(go)
         State.pure[CallStack, T](Suspended(reqId).asRight)
 
+      case Eval(thunk) =>
+        val value = thunk()
+        State.pure[CallStack, T](Pure(value).asLeft)
+
       case _ => throw new RuntimeException("imposible")
     }
   }
