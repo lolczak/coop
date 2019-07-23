@@ -43,7 +43,6 @@ object TestMain extends App {
   Scheduler.shutdown()
 
   //backlog
-  //todo 1)async handling
   //todo 2)channels
   //todo 3)bifunctor
   //todo 4)thread pool executor
