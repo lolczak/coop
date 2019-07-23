@@ -11,13 +11,14 @@ object TestMain extends App {
 
   val fiber1 =
     for {
-      value   <- pure { 123 }
-      result  <- pure { value + 1 }
+      value    <- pure { 123 }
+      result1  <- pure { value + 1 }
+      result2  <- pure { result1 + 1 }
 //      next    <- async[Int] { cb => new Thread(() => { cb(Right(value+1)) }).start() }
 //      next2    = next + 1
 //      _       <- spawn { effect { println("spawned") }  }
 //      result  <- eval { next2 + 3 }
-    } yield result
+    } yield result2
 
 //  val fiber2 =
 //    for {
