@@ -72,10 +72,8 @@ object Scheduler {
           suspended = suspended + (requestId -> currentFiber)
 
         case CreateFiber(coroutine) =>
-          println("creating fiber")
           running = running.filter(_ != fiber)
           val currentFiber = fiber.copy(callStack = currentStack)
-          currentStack foreach println
           ready = currentFiber +: ready
           run(coroutine)
           pool.execute(() => runLoop())

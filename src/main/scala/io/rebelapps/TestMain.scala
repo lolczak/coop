@@ -20,6 +20,7 @@ object TestMain extends App {
 
   val fiber2 =
     for {
+      _       <- spawn { effect { println("spawned2") }  }
       value   <- pure { 23 }
       next     = value + 1
       next2   <- eval { next + 3 }
@@ -27,13 +28,13 @@ object TestMain extends App {
     } yield result
 
   val future1 = Scheduler.run(fiber1 map(_ + 5))
-//  val future2 = Scheduler.run(fiber2 map(_ + 5))
+  val future2 = Scheduler.run(fiber2 map(_ + 5))
 
   val result1 = Await.result(future1, 10 seconds)
-//  val result2 = Await.result(future2, 10 seconds)
+  val result2 = Await.result(future2, 10 seconds)
 
   println(result1)
-//  println(result2)
+  println(result2)
 
   Scheduler.shutdown()
 
