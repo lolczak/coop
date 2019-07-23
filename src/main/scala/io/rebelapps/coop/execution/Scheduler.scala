@@ -6,7 +6,7 @@ import java.util.concurrent.{ScheduledThreadPoolExecutor, ThreadFactory}
 
 import cats.Monad
 import cats.data.State
-import io.rebelapps.coop.data.Coroutine
+import io.rebelapps.coop.data.{Coroutine, Pure}
 import io.rebelapps.coop.execution.stack.CallStack
 
 import scala.concurrent.{Future, Promise}
@@ -63,21 +63,21 @@ object Scheduler {
           running = running.filter(_ != fiber)
           fiber.promise.success(value)
 
+        case Suspended(requestId) =>
+          running = running.filter(_ != fiber)
+          val currentFiber = fiber.copy(callStack = currentStack)
+          suspended = suspended + (requestId -> currentFiber)
+        //
+        //        case CreateFiber(coroutine) =>
+        //          running = running.filter(_ != fiber)
+        //          val currentFiber = fiber.copy(callStack = currentStack)
+        //          ready = currentFiber +: ready
+        //          run(coroutine)
+        //          pool.execute(() => runLoop())
+
         case _ =>
           println("imposible")
           throw new RuntimeException("imposible")
-
-//        case Suspended(requestId) =>
-//          running = running.filter(_ != fiber)
-//          val currentFiber = fiber.copy(callStack = currentStack)
-//          suspended = suspended + (requestId -> currentFiber)
-//
-//        case CreateFiber(coroutine) =>
-//          running = running.filter(_ != fiber)
-//          val currentFiber = fiber.copy(callStack = currentStack)
-//          ready = currentFiber +: ready
-//          run(coroutine)
-//          pool.execute(() => runLoop())
       }
     } else {
       println("nothing to do")
@@ -88,15 +88,14 @@ object Scheduler {
     val requestId = UUID.randomUUID()
     go {
       case Left(ex) => throw ex
-      case Right(r) => throw new RuntimeException("imposible")
-      //        pool.execute { () =>
-//          val fiber = suspended(requestId)
-//          suspended = suspended - requestId
-//          val currentStack = push(Val(r)).run(fiber.callStack).value._1
-//          val currentFiber = fiber.copy(callStack = currentStack)
-//          ready = currentFiber +: ready
-//          runLoop()
-//        }
+      case Right(r) =>
+        pool.execute { () =>
+          val fiber = suspended(requestId)
+          suspended = suspended - requestId
+          val currentFiber = fiber.copy(coroutine = Pure(r))
+          ready = currentFiber +: ready
+          runLoop()
+        }
     }
     requestId
   }

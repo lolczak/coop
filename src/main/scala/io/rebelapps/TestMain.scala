@@ -14,11 +14,11 @@ object TestMain extends App {
       value    <- pure { 123 }
       result1  <- pure { value + 1 }
       result2  <- pure { result1 + 1 }
-//      next    <- async[Int] { cb => new Thread(() => { cb(Right(value+1)) }).start() }
+      result   <- async[Int] { cb => new Thread(() => { cb(Right(result2+1)) }).start() }
 //      next2    = next + 1
 //      _       <- spawn { effect { println("spawned") }  }
 //      result  <- eval { next2 + 3 }
-    } yield result2
+    } yield result
 
 //  val fiber2 =
 //    for {
@@ -31,7 +31,7 @@ object TestMain extends App {
 
   println(fiber1)
 
-  val future1 = Scheduler.run(fiber1 map(_ + 5))
+  val future1 = Scheduler.run(fiber1 map (_ + 5))
 //  val future2 = Scheduler.run(fiber2 map(_ + 5))
 
   val result1 = Await.result(future1, 10 seconds)

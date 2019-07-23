@@ -33,6 +33,10 @@ object RunLoop {
       case Map(coroutine, f) =>
         push(Continuation(f andThen ((ret:Any) => Pure(ret)))) >> step(exec)(coroutine)
 
+      case Async(go) =>
+        val reqId = exec(go)
+        State.pure[CallStack, T](Suspended(reqId).asRight)
+
       case _ => throw new RuntimeException("imposible")
     }
   }
