@@ -41,6 +41,9 @@ object RunLoop {
         val value = thunk()
         State.pure[CallStack, T](Pure(value).asLeft)
 
+      case Spawn(coroutine) =>
+        State.pure[CallStack, T](CreateFiber(coroutine).asRight)
+
       case _ => throw new RuntimeException("imposible")
     }
   }
