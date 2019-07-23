@@ -1,15 +1,13 @@
-package io.rebelapps.coop.scheduler
+package io.rebelapps.coop.execution
 
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.{RejectedExecutionHandler, ScheduledThreadPoolExecutor, ThreadFactory, ThreadPoolExecutor}
+import java.util.concurrent.{ScheduledThreadPoolExecutor, ThreadFactory}
 
 import cats.Monad
 import cats.data.State
-import io.rebelapps.coop.data.Coroutine
-import io.rebelapps.coop.execution.RunLoop.{createCallStack, step}
-import io.rebelapps.coop.execution.stack.{CallStack, Val, push}
-import io.rebelapps.coop.execution._
+import io.rebelapps.coop.data.{Coroutine, Pure}
+import io.rebelapps.coop.execution.stack.CallStack
 
 import scala.concurrent.{Future, Promise}
 
@@ -41,9 +39,8 @@ object Scheduler {
   private var suspended: Map[UUID, Fiber[Any]] = Map.empty
 
   def run[A](coroutine: Coroutine[A]): Future[A] = {
-    val stack = createCallStack(coroutine)
     val promise = Promise[Any]()
-    val fiber = Fiber[Any](coroutine, stack, promise)
+    val fiber = Fiber[Any](coroutine, stack.emptyStack, promise)
     pool.execute { () =>
       ready = fiber +: ready
       runLoop()
@@ -58,7 +55,7 @@ object Scheduler {
       running = fiber +: running
 
       val M = Monad[State[CallStack, ?]]
-      val op = M.tailRecM(Alive)(_ => step(exec))
+      val op = M.tailRecM(fiber.coroutine)(RunLoop.step(exec)(_))
 
       val (currentStack, result) = op.run(fiber.callStack).value
       result match {
@@ -73,10 +70,14 @@ object Scheduler {
 
         case CreateFiber(coroutine) =>
           running = running.filter(_ != fiber)
-          val currentFiber = fiber.copy(callStack = currentStack)
+          val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(()))
           ready = currentFiber +: ready
           run(coroutine)
           pool.execute(() => runLoop())
+
+        case _ =>
+          println("imposible")
+          throw new RuntimeException("imposible")
       }
     } else {
       println("nothing to do")
@@ -91,8 +92,7 @@ object Scheduler {
         pool.execute { () =>
           val fiber = suspended(requestId)
           suspended = suspended - requestId
-          val currentStack = push(Val(r)).run(fiber.callStack).value._1
-          val currentFiber = fiber.copy(callStack = currentStack)
+          val currentFiber = fiber.copy(coroutine = Pure(r))
           ready = currentFiber +: ready
           runLoop()
         }

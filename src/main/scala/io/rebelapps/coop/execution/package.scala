@@ -8,7 +8,6 @@ package object execution {
 
   type RequestId = UUID
 
-  case object Alive
   sealed trait Result
 
   case class Return(value: Any) extends Result

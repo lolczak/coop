@@ -1,4 +1,4 @@
-package io.rebelapps.coop.scheduler
+package io.rebelapps.coop.execution
 
 import io.rebelapps.coop.data.Coroutine
 import io.rebelapps.coop.execution.stack.CallStack
