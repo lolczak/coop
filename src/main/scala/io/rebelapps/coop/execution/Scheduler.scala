@@ -55,7 +55,7 @@ object Scheduler {
       running = fiber +: running
 
       val M = Monad[State[CallStack, ?]]
-      val op = M.tailRecM(fiber.coroutine)(c => RunLoop.step(exec)(c))
+      val op = M.tailRecM(fiber.coroutine)(RunLoop.step(exec)(_))
 
       val (currentStack, result) = op.run(fiber.callStack).value
       result match {
