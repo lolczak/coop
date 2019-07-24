@@ -31,7 +31,7 @@ object RunLoop {
         push(Continuation(f)) >> step(exec)(fa)
 
       case Map(coroutine, f) =>
-        push(Continuation(f andThen ((ret:Any) => Pure(ret)))) >> step(exec)(coroutine)
+        push(Continuation(f andThen Pure.apply)) >> step(exec)(coroutine)
 
       case Async(go) =>
         val reqId = exec(go)
