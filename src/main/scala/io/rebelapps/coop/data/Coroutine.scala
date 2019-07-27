@@ -1,5 +1,7 @@
 package io.rebelapps.coop.data
 
+import java.util.UUID
+
 sealed trait Coroutine[+A] {
 
   def map[B](f: A => B): Coroutine[B] = Map(this, f)
@@ -18,10 +20,13 @@ case class FlatMap[A, +B](fa: Coroutine[A], f: A => Coroutine[B]) extends Corout
 
 case class Spawn(coroutine: Coroutine[_]) extends Coroutine[Unit]
 
-//case class RaiseError(exception: Exception) extends Coroutine[Nothing]
+case class CreateChannel[A](size: Int) extends Coroutine[Channel[A]]
 
-//todo channel
-//todo loop
+case class ReadChannel[A](id: UUID) extends Coroutine[A]
+
+case class WriteChannel[A](id: UUID, elem: A) extends Coroutine[Unit]
+
+//case class RaiseError(exception: Exception) extends Coroutine[Nothing]
 
 object Coroutine extends CoroutineInstances {
 
@@ -34,5 +39,7 @@ object Coroutine extends CoroutineInstances {
   def async[A](go: (Either[Exception, A] => Unit) => Unit): Coroutine[A] = Async(go)
 
   def spawn[A](coroutine: Coroutine[A]): Coroutine[Unit] = Spawn(coroutine)
+
+  def makeChan[A](size: Int): Coroutine[Channel[A]] = new CreateChannel[A](size)
 
 }

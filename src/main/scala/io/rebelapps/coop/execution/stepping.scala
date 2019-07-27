@@ -1,15 +1,12 @@
 package io.rebelapps.coop.execution
 
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicReference
-
 import cats.Monad
 import cats.data.State
 import io.rebelapps.coop.data._
 import io.rebelapps.coop.execution.stack._
 import cats.implicits._
 
-object RunLoop {
+object stepping {
 
   private val M = Monad[State[CallStack, ?]]
   import M._
@@ -37,6 +34,15 @@ object RunLoop {
         val reqId = exec(go)
         State.pure[CallStack, T](Suspended(reqId).asRight)
 
+      case CreateChannel(size) =>
+        State.pure[CallStack, T](ChannelCreation(size).asRight)
+
+      case ReadChannel(id) =>
+        State.pure[CallStack, T](ChannelRead(id).asRight)
+
+      case WriteChannel(id, elem) =>
+        State.pure[CallStack, T](ChannelWrite(id, elem).asRight)
+
       case Eval(thunk) =>
         val value = thunk()
         State.pure[CallStack, T](Pure(value).asLeft)
@@ -47,9 +53,5 @@ object RunLoop {
       case _ => throw new RuntimeException("imposible")
     }
   }
-
-  /*
-  stack represents work to do
-   */
 
 }

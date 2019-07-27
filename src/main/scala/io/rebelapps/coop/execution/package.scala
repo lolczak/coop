@@ -13,8 +13,13 @@ package object execution {
   case class Return(value: Any) extends Result
   case class CreateFiber(coroutine: Coroutine[Any]) extends Result
 
+  //todo refactor to suspension -> like Channel suspension
   sealed trait Termination extends Result
-  case class Suspended(requestId: RequestId) extends Termination
+
+  case class ChannelCreation(size: Int)         extends Termination
+  case class ChannelRead(id: UUID)              extends Termination
+  case class ChannelWrite(id: UUID, value: Any) extends Termination
+  case class Suspended(requestId: RequestId)    extends Termination
 
   case class Fail(exception: Exception)
 

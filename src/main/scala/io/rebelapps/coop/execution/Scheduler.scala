@@ -6,7 +6,7 @@ import java.util.concurrent.{ScheduledThreadPoolExecutor, ThreadFactory}
 
 import cats.Monad
 import cats.data.State
-import io.rebelapps.coop.data.{Coroutine, Pure}
+import io.rebelapps.coop.data.{Channel, Coroutine, Pure}
 import io.rebelapps.coop.execution.stack.CallStack
 
 import scala.concurrent.{Future, Promise}
@@ -38,6 +38,8 @@ object Scheduler {
   @volatile
   private var suspended: Map[UUID, Fiber[Any]] = Map.empty
 
+  private var channels: Map[UUID, Channel[Any]] = Map.empty
+
   def run[A](coroutine: Coroutine[A]): Future[A] = {
     val promise = Promise[Any]()
     val fiber = Fiber[Any](coroutine, stack.emptyStack, promise)
@@ -55,7 +57,7 @@ object Scheduler {
       running = fiber +: running
 
       val M = Monad[State[CallStack, ?]]
-      val op = M.tailRecM(fiber.coroutine)(RunLoop.step(exec)(_))
+      val op = M.tailRecM(fiber.coroutine)(stepping.step(exec)(_))
 
       val (currentStack, result) = op.run(fiber.callStack).value
       result match {
@@ -73,6 +75,15 @@ object Scheduler {
           val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(()))
           ready = currentFiber +: ready
           run(coroutine)
+          pool.execute(() => runLoop())
+
+        case ChannelCreation(size) =>
+          val id = UUID.randomUUID()
+          val channel = new SimpleChannel[Any](id, size)
+          channels = channels + (id -> channel)
+          running = running.filter(_ != fiber)
+          val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(channel))
+          ready = currentFiber +: ready
           pool.execute(() => runLoop())
 
         case _ =>

@@ -7,11 +7,13 @@ import io.rebelapps.coop.execution.Scheduler
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-object TestMain extends App {
+object Showcase extends App {
 
   val fiber1 =
     for {
       value    <- pure { 123 }
+      chan     <- makeChan[Int](10)
+      _        <- effect { println(chan) }
       result1  <- pure { value + 1 }
       result2  <- pure { result1 + 1 }
       next     <- async[Int] { cb => new Thread(() => { cb(Right(result2+1)) }).start() }
@@ -44,7 +46,9 @@ object TestMain extends App {
 
   //backlog
   //todo 2)channels
+  //todo 2)channel multiplexer
   //todo 3)bifunctor
   //todo 4)thread pool executor
+  //todo 5)unbuffered channel
 
 }
