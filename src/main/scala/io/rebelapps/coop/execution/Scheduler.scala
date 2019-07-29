@@ -6,7 +6,7 @@ import java.util.concurrent.{ScheduledThreadPoolExecutor, ThreadFactory}
 
 import cats.Monad
 import cats.data.State
-import io.rebelapps.coop.data.{Channel, Coroutine, Pure}
+import io.rebelapps.coop.data.{Channel, Coroutine, Nop, Pure}
 import io.rebelapps.coop.execution.stack.CallStack
 
 import scala.concurrent.{Future, Promise}
@@ -38,7 +38,7 @@ object Scheduler {
   @volatile
   private var suspended: Map[UUID, Fiber[Any]] = Map.empty
 
-  private var channels: Map[UUID, Channel[Any]] = Map.empty
+  private var channels: Map[UUID, SimpleChannel[Any]] = Map.empty
 
   def run[A](coroutine: Coroutine[A]): Future[A] = {
     val promise = Promise[Any]()
@@ -85,6 +85,53 @@ object Scheduler {
           val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(channel))
           ready = currentFiber +: ready
           pool.execute(() => runLoop())
+
+        case ChannelRead(id) =>
+          val channel = channels(id)
+          if (channel.queue.nonEmpty) {
+            val (ch, elem) = channel.dequeue()
+            channels = channels + (channel.id -> ch)
+            val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(elem))
+            ready = currentFiber +: ready
+            if (channel.writeWait.nonEmpty) {
+              val (ch2, (wFiber, wElem)) = ch.getFirstWaitingForWrite()
+              val currentChannel = ch2.enqueue(wElem)
+              channels = channels + (channel.id -> currentChannel)
+              ready = wFiber.asInstanceOf[Fiber[Any]] +: ready
+            }
+            pool.execute(() => runLoop())
+          } else {
+            running = running.filter(_ != fiber)
+            val currentFiber = fiber.copy(callStack = currentStack, coroutine = Nop)
+            val ch = channel.waitForRead(currentFiber)
+            channels = channels + (channel.id -> ch)
+            pool.execute(() => runLoop())
+          }
+
+        case ChannelWrite(id, elem) =>
+          val channel = channels(id)
+          if (channel.readWait.nonEmpty) {
+            val (ch, f) = channel.getFirstWaitingForRead()
+            channels = channels + (channel.id -> ch)
+            val newFiber = f.asInstanceOf[Fiber[Any]].copy(coroutine = Pure(elem))
+            ready = newFiber +: ready
+            pool.execute(() => runLoop())
+          } else {
+            if (channel.queue.size < channel.queueSize) {
+              val currentChannel = channel.enqueue(elem)
+              channels = channels + (channel.id -> currentChannel)
+              running = running.filter(_ != fiber)
+              val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(()))
+              ready = currentFiber +: ready
+              pool.execute(() => runLoop())
+            } else {
+              val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(()))
+              val currentChannel = channel.waitForWrite(elem, currentFiber)
+              channels = channels + (channel.id -> currentChannel)
+              running = running.filter(_ != fiber)
+              pool.execute(() => runLoop()) //?
+            }
+          }
 
         case _ =>
           println("imposible")

@@ -26,6 +26,8 @@ case class ReadChannel[A](id: UUID) extends Coroutine[A]
 
 case class WriteChannel[A](id: UUID, elem: A) extends Coroutine[Unit]
 
+case object Nop extends Coroutine[Nothing]
+
 //case class RaiseError(exception: Exception) extends Coroutine[Nothing]
 
 object Coroutine extends CoroutineInstances {

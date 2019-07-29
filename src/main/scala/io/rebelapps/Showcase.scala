@@ -12,13 +12,16 @@ object Showcase extends App {
   val fiber1 =
     for {
       value    <- pure { 123 }
-      chan     <- makeChan[Int](10)
-      _        <- effect { println(chan) }
-      result1  <- pure { value + 1 }
+      inbound  <- makeChan[Int](10)
+      outbound <- makeChan[Int](10)
+      _        <- spawn {
+        effect { println("spawned") } >> inbound.read() >>= (i => outbound.write(i + 1))
+      }
+      _        <- inbound.write(value)
+      result1  <- outbound.read()
       result2  <- pure { result1 + 1 }
       next     <- async[Int] { cb => new Thread(() => { cb(Right(result2+1)) }).start() }
       next2    = next + 1
-      _        <- spawn { effect { println("spawned") }  }
       result   <- eval { next2 + 3 }
     } yield result
 
