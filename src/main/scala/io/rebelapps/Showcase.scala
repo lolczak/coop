@@ -1,6 +1,7 @@
 package io.rebelapps
 
 import cats.implicits._
+import io.rebelapps.coop.data.{Channel, Coroutine}
 import io.rebelapps.coop.data.Coroutine._
 import io.rebelapps.coop.execution.Scheduler
 
@@ -9,20 +10,28 @@ import scala.concurrent.duration._
 
 object Showcase extends App {
 
+  val BufSize = 1
+
+  val GenMsg = 2
+
+  def loop(inbound: Channel[Int], outbound: Channel[Int]): Coroutine[Unit] =
+    effect(println("loop begin")) >> (inbound.read() >>= ((i: Int) => outbound.write(i * 2))) >> loop(inbound, outbound)
+
   val fiber1 =
     for {
       value    <- pure { 123 }
-      inbound  <- makeChan[Int](10)
-      outbound <- makeChan[Int](10)
-      _        <- spawn {
-        effect { println("spawned") } >> inbound.read() >>= (i => outbound.write(i + 1))
-      }
-      _        <- inbound.write(value)
-      result1  <- outbound.read()
-      result2  <- pure { result1 + 1 }
+      inbound  <- makeChan[Int](BufSize)
+      outbound <- makeChan[Int](BufSize)
+      _        <- spawn { effect { println("spawned") } >> loop(inbound, outbound) }
+      _        <- effect(println("after spawn"))
+      _        <- (1 to GenMsg).toList.traverse(inbound.write)
+      _        <- effect(println("written"))
+      result1  <- (1 to GenMsg).toList.traverse(_ => outbound.read())
+      _        <- effect(println(s"sum:$result1"))
+      result2  <- pure { result1.sum + 1 }
       next     <- async[Int] { cb => new Thread(() => { cb(Right(result2+1)) }).start() }
       next2    = next + 1
-      result   <- eval { next2 + 3 }
+      result   <- eval { next2 + 1 }
     } yield result
 
   val fiber2 =
@@ -48,7 +57,7 @@ object Showcase extends App {
   Scheduler.shutdown()
 
   //backlog
-  //todo 2)channels
+  //todo 2)channel release
   //todo 2)channel multiplexer
   //todo 3)bifunctor
   //todo 4)thread pool executor

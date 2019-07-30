@@ -14,9 +14,13 @@ case class SimpleChannel[A](id: UUID,
 
   //todo OOD
 
-  def enqueue(elem: A) = this.copy(queue = elem +: queue)
+  def enqueue(elem: A) = {
+    println(s"enque $id size: ${queue.size+1}")
+    this.copy(queue = elem +: queue)
+  }
 
   def dequeue(): (SimpleChannel[A], A) = {
+    println(s"deque $id size: ${queue.size-1}")
     val tail = queue.last
     this.copy(queue = queue.init) -> tail
   }
