@@ -131,7 +131,7 @@ object Scheduler {
             ready = newFiber +: ready
             pool.execute(() => runLoop())
           } else {
-            if (channel.queue.size < channel.queueSize) {
+            if (channel.queue.size < channel.queueLength) {
               val currentChannel = channel.enqueue(elem)
               channels = channels + (channel.id -> currentChannel)
               running = running.filter(_ != fiber)

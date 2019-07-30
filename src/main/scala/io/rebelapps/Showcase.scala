@@ -12,7 +12,7 @@ object Showcase extends App {
 
   val BufSize = 0
 
-  val GenMsg = 10
+  val GenMsg = 100
 
   def loop(inbound: Channel[Int], outbound: Channel[Int]): Coroutine[Unit] =
     effect(println("loop begin")) >> (inbound.read() >>= ((i: Int) => outbound.write(i * 2))) >> loop(inbound, outbound)
@@ -25,8 +25,7 @@ object Showcase extends App {
       _        <- spawn { effect { println("spawned") } >> loop(inbound, outbound) }
       _        <- effect(println("after spawn"))
       result1  <- (1 to GenMsg).toList.traverse(i => inbound.write(i) >> outbound.read())
-      _        <- effect(println("written"))
-//      result1  <- (1 to GenMsg).toList.traverse(_ => outbound.read())
+      _        <- effect(println("consumed"))
       _        <- effect(println(s"sum:$result1"))
       result2  <- pure { result1.sum + 1 }
       next     <- async[Int] { cb => new Thread(() => { cb(Right(result2+1)) }).start() }
@@ -57,11 +56,11 @@ object Showcase extends App {
   Scheduler.shutdown()
 
   //backlog
+  //todo *)refactoring
   //todo *)channel release
   //todo *)channel multiplexer
   //todo *)bifunctor
   //todo *)thread pool executor
-  //todo *)unbuffered channel
   //todo *)use logger to debug
   //todo *)detect double locks
 

@@ -5,7 +5,7 @@ import java.util.UUID
 import io.rebelapps.coop.data.{Channel, Coroutine, ReadChannel, WriteChannel}
 
 case class SimpleChannel[A](id: UUID,
-                            queueSize: Int,
+                            queueLength: Int,
                             queue: Vector[A] = Vector.empty,
                             readWait: Vector[Fiber[_]] = Vector.empty,
                             writeWait: Vector[(Fiber[_], Any)] = Vector.empty
