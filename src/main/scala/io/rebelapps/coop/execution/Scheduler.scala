@@ -88,7 +88,16 @@ object Scheduler {
 
         case ChannelRead(id) =>
           val channel = channels(id)
-          if (channel.queue.nonEmpty) {
+          if (channel.queue.isEmpty && channel.writeWait.nonEmpty) {
+            val (ch, (wFiber, wElem)) = channel.getFirstWaitingForWrite()
+            channels = channels + (channel.id -> ch)
+            ready = wFiber.asInstanceOf[Fiber[Any]] +: ready
+            val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(wElem))
+            running = running.filter(_ != fiber)
+            ready = currentFiber +: ready
+            pool.execute(() => runLoop())
+            pool.execute(() => runLoop())
+          } else if (channel.queue.nonEmpty) {
             val (ch, elem) = channel.dequeue()
             channels = channels + (channel.id -> ch)
             val currentFiber = fiber.copy(callStack = currentStack, coroutine = Pure(elem))
