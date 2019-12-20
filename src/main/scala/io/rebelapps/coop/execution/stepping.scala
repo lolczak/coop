@@ -1,54 +1,54 @@
 package io.rebelapps.coop.execution
 
-import cats.Monad
-import cats.data.State
+import java.util
+
+import cats.implicits._
 import io.rebelapps.coop.data._
 import io.rebelapps.coop.execution.stack._
-import cats.implicits._
+
+import scala.annotation.tailrec
 
 object stepping {
 
-  private val M = Monad[State[CallStack, ?]]
-  import M._
-
-  private type T = Either[Coop[Any], Result]
-
-  def step(exec: AsyncRunner)(coroutine: Coop[_]): State[CallStack, T] = {
+  //  def step(exec: AsyncRunner)(coroutine: Coop[_]): State[CallStack, T] = {
+  //todo make it tail recursive
+  @tailrec
+  def step(exec: AsyncRunner)(coroutine: Coop[_], stack: util.Stack[Frame]): Either[Coop[Any], Result] = {
     coroutine match {
       case Pure(value) =>
-        ifM(isEmpty())(
-          State.pure[CallStack, T](Return(value).asRight),
-          for {
-            result          <- pop()
-            Continuation(f)  = result
-          } yield f(value).asLeft
-        )
-
+        if (stack.empty()) {
+          Return(value).asRight
+        } else {
+          val Continuation(f) = stack.pop()
+          f(value).asLeft
+        }
       case FlatMap(fa, f) =>
-        push(Continuation(f)) >> step(exec)(fa)
+        stack.push(Continuation(f))
+        step(exec)(fa, stack)
 
       case Map(coroutine, f) =>
-        push(Continuation(f andThen Pure.apply)) >> step(exec)(coroutine)
+        stack.push(Continuation(f andThen Pure.apply))
+        step(exec)(coroutine, stack)
 
       case Async(go) =>
         val reqId = exec(go)
-        State.pure[CallStack, T](Suspended(reqId).asRight)
+        Suspended(reqId).asRight
 
       case CreateChannel(size) =>
-        State.pure[CallStack, T](ChannelCreation(size).asRight)
+        ChannelCreation(size).asRight
 
       case ReadChannel(id) =>
-        State.pure[CallStack, T](ChannelRead(id).asRight)
+        ChannelRead(id).asRight
 
       case WriteChannel(id, elem) =>
-        State.pure[CallStack, T](ChannelWrite(id, elem).asRight)
+        ChannelWrite(id, elem).asRight
 
       case Eval(thunk) =>
         val value = thunk()
-        State.pure[CallStack, T](Pure(value).asLeft)
+        Pure(value).asLeft
 
       case Spawn(coroutine) =>
-        State.pure[CallStack, T](CreateFiber(coroutine).asRight)
+        CreateFiber(coroutine).asRight
 
       case _ => throw new RuntimeException("imposible")
     }
