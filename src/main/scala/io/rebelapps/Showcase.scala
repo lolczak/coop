@@ -53,6 +53,8 @@ object Showcase extends App {
   println(result1)
   println(result2)
 
+  require(result1 == 10109)
+  require(result2 == 33)
   Scheduler.shutdown()
 
   //backlog
