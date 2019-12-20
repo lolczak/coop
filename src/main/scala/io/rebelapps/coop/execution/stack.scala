@@ -1,7 +1,7 @@
 package io.rebelapps.coop.execution
 
 import cats.data.State
-import io.rebelapps.coop.data.Coroutine
+import io.rebelapps.coop.data.Coop
 
 object stack {
 
@@ -9,7 +9,7 @@ object stack {
 
   case class Ret(value: Any) extends Frame
 
-  case class Continuation(f: Any => Coroutine[Any]) extends Frame
+  case class Continuation(f: Any => Coop[Any]) extends Frame
 
   type CallStack = List[Frame]
 

@@ -11,9 +11,9 @@ object stepping {
   private val M = Monad[State[CallStack, ?]]
   import M._
 
-  private type T = Either[Coroutine[Any], Result]
+  private type T = Either[Coop[Any], Result]
 
-  def step(exec: AsyncRunner)(coroutine: Coroutine[_]): State[CallStack, T] = {
+  def step(exec: AsyncRunner)(coroutine: Coop[_]): State[CallStack, T] = {
     coroutine match {
       case Pure(value) =>
         ifM(isEmpty())(

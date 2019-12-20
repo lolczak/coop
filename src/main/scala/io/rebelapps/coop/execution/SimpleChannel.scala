@@ -2,7 +2,7 @@ package io.rebelapps.coop.execution
 
 import java.util.UUID
 
-import io.rebelapps.coop.data.{Channel, Coroutine, ReadChannel, WriteChannel}
+import io.rebelapps.coop.data.{Channel, Coop, ReadChannel, WriteChannel}
 
 case class SimpleChannel[A](id: UUID,
                             queueLength: Int,
@@ -39,8 +39,8 @@ case class SimpleChannel[A](id: UUID,
     this.copy(writeWait = writeWait.init) -> fiber
   }
 
-  override def read(): Coroutine[A] = ReadChannel[A](id)
+  override def read(): Coop[A] = ReadChannel[A](id)
 
-  override def write(elem: A): Coroutine[Unit] = WriteChannel(id, elem)
+  override def write(elem: A): Coop[Unit] = WriteChannel(id, elem)
 
 }

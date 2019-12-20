@@ -5,6 +5,6 @@ import io.rebelapps.coop.control.CoroutineMonad
 
 trait CoroutineInstances {
 
-  implicit val monad: Monad[Coroutine] = CoroutineMonad
+  implicit val monad: Monad[Coop] = CoroutineMonad
 
 }

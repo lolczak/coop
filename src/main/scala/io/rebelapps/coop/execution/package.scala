@@ -2,7 +2,7 @@ package io.rebelapps.coop
 
 import java.util.UUID
 
-import io.rebelapps.coop.data.Coroutine
+import io.rebelapps.coop.data.Coop
 
 package object execution {
 
@@ -11,7 +11,7 @@ package object execution {
   sealed trait Result
 
   case class Return(value: Any) extends Result
-  case class CreateFiber(coroutine: Coroutine[Any]) extends Result
+  case class CreateFiber(coroutine: Coop[Any]) extends Result
 
   //todo refactor to suspension -> like Channel suspension
   sealed trait Termination extends Result

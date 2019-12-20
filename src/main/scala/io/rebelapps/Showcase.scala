@@ -1,8 +1,8 @@
 package io.rebelapps
 
 import cats.implicits._
-import io.rebelapps.coop.data.{Channel, Coroutine}
-import io.rebelapps.coop.data.Coroutine._
+import io.rebelapps.coop.data.{Channel, Coop}
+import io.rebelapps.coop.data.Coop._
 import io.rebelapps.coop.execution.Scheduler
 
 import scala.concurrent.Await
@@ -14,8 +14,8 @@ object Showcase extends App {
 
   val GenMsg = 100
 
-  def loop(inbound: Channel[Int], outbound: Channel[Int]): Coroutine[Unit] =
-    effect(println("loop begin")) >> (inbound.read() >>= ((i: Int) => outbound.write(i * 2))) >> loop(inbound, outbound)
+  def loop(inbound: Channel[Int], outbound: Channel[Int]): Coop[Unit] =
+    (inbound.read() >>= ((i: Int) => outbound.write(i * 2))) >> loop(inbound, outbound)
 
   val fiber1 =
     for {

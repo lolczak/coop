@@ -6,7 +6,7 @@ import java.util.concurrent.{ScheduledThreadPoolExecutor, ThreadFactory}
 
 import cats.Monad
 import cats.data.State
-import io.rebelapps.coop.data.{Channel, Coroutine, Nop, Pure}
+import io.rebelapps.coop.data.{Coop, Nop, Pure}
 import io.rebelapps.coop.execution.stack.CallStack
 
 import scala.concurrent.{Future, Promise}
@@ -40,7 +40,7 @@ object Scheduler {
 
   private var channels: Map[UUID, SimpleChannel[Any]] = Map.empty
 
-  def run[A](coroutine: Coroutine[A]): Future[A] = {
+  def run[A](coroutine: Coop[A]): Future[A] = {
     val promise = Promise[Any]()
     val fiber = Fiber[Any](coroutine, stack.emptyStack, promise)
     pool.execute { () =>
