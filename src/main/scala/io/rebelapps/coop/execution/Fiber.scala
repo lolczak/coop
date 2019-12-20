@@ -9,7 +9,7 @@ import scala.concurrent.{Future, Promise}
 
 class Fiber[A](var coroutine: Coop[A]) {
 
-  val callStack: util.Stack[Frame] = new util.Stack()
+  val stack: util.Stack[Frame] = new util.Stack()
 
   private val promise: Promise[A] = Promise[A]()
 

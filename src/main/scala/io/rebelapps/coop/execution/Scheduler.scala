@@ -41,15 +41,15 @@ object Scheduler {
       running = fiber +: running
 
       @tailrec
-      def go(coroutine: Coop[_], stack: util.Stack[Frame]): Result = {
-        val maybeResult = stepping.step(exec)(coroutine, stack)
+      def go(fiber: Fiber[Any]): Result = {
+        val maybeResult = stepping.step(exec)(fiber)
         maybeResult match {
-          case Left(coop)    => go(coop, stack)
+          case Left(next)    => go(next)
           case Right(result) => result
         }
       }
 
-      val result = go(fiber.coroutine, fiber.callStack)
+      val result = go(fiber)
 
       result match {
         case Return(value) =>

@@ -14,26 +14,25 @@ object stepping {
    * Evaluates one step of coroutine flow.
    *
    * @param exec
-   * @param coroutine
-   * @param stack
-   * @return
+   * @param fiber
+   * @return left when flow can be processed further, right if flow is suspended or terminated
    */
-  def step(exec: AsyncRunner)(coroutine: Coop[_], stack: util.Stack[Frame]): Either[Coop[Any], Result] = {
-    coroutine match {
+  def step(exec: AsyncRunner)(fiber: Fiber[Any]): Either[Fiber[Any], Result] = {
+    fiber.coroutine match {
       case Pure(value) =>
-        if (stack.empty()) {
+        if (fiber.stack.empty()) {
           Return(value).asRight
         } else {
-          val Continuation(f) = stack.pop()
-          f(value).asLeft
+          val Continuation(f) = fiber.stack.pop()
+          fiber.updateFlow(f(value)).asLeft
         }
       case FlatMap(fa, f) =>
-        stack.push(Continuation(f))
-        fa.asLeft
+        fiber.stack.push(Continuation(f))
+        fiber.updateFlow(fa).asLeft
 
       case Map(coroutine, f) =>
-        stack.push(Continuation(f andThen Pure.apply))
-        coroutine.asLeft
+        fiber.stack.push(Continuation(f andThen Pure.apply))
+        fiber.updateFlow(coroutine).asLeft
 
       case Async(go) =>
         val reqId = exec(go)
@@ -50,7 +49,7 @@ object stepping {
 
       case Eval(thunk) =>
         val value = thunk()
-        Pure(value).asLeft
+        fiber.updateFlow(Pure(value)).asLeft
 
       case Spawn(coroutine) =>
         CreateFiber(coroutine).asRight
