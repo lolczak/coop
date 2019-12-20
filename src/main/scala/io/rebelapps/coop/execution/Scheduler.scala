@@ -8,7 +8,7 @@ import io.rebelapps.coop.data.{Coop, Nop, Pure}
 import io.rebelapps.coop.execution.stack.Frame
 
 import scala.annotation.tailrec
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 
 object Scheduler {
 
@@ -26,13 +26,12 @@ object Scheduler {
   private var channels: Map[UUID, SimpleChannel[Any]] = Map.empty
 
   def run[A](coroutine: Coop[A]): Future[A] = {
-    val promise = Promise[Any]()
-    val fiber = Fiber[Any](coroutine, new util.Stack(), promise)
+    val fiber = Fiber[Any](coroutine)
     pool.execute { () =>
       ready = fiber +: ready
       runLoop()
     }
-    promise.future.asInstanceOf[Future[A]]
+    fiber.getFuture.asInstanceOf[Future[A]]
   }
 
   def runLoop(): Unit = {
@@ -55,7 +54,7 @@ object Scheduler {
       result match {
         case Return(value) =>
           running = running.filterNot(_ eq fiber)
-          fiber.promise.success(value)
+          fiber.complete(value)
 
         case Suspended(requestId) =>
           running = running.filterNot(_ eq fiber)
@@ -64,7 +63,7 @@ object Scheduler {
 
         case CreateFiber(coroutine) =>
           running = running.filterNot(_ eq fiber)
-          val currentFiber = fiber.copy(coroutine = Pure(()))
+          val currentFiber = fiber.updateFlow(Pure(()))
           ready = currentFiber +: ready
           run(coroutine)
           pool.execute(() => runLoop())
@@ -74,7 +73,7 @@ object Scheduler {
           val channel = new SimpleChannel[Any](id, size)
           channels = channels + (id -> channel)
           running = running.filterNot(_ eq fiber)
-          val currentFiber = fiber.copy(coroutine = Pure(channel))
+          val currentFiber = fiber.updateFlow(Pure(channel))
           ready = currentFiber +: ready
           pool.execute(() => runLoop())
 
@@ -84,7 +83,7 @@ object Scheduler {
             val (ch, (wFiber, wElem)) = channel.getFirstWaitingForWrite()
             channels = channels + (channel.id -> ch)
             ready = wFiber.asInstanceOf[Fiber[Any]] +: ready
-            val currentFiber = fiber.copy(coroutine = Pure(wElem))
+            val currentFiber = fiber.updateFlow(Pure(wElem))
             running = running.filterNot(_ eq fiber)
             ready = currentFiber +: ready
             pool.execute(() => runLoop())
@@ -92,7 +91,7 @@ object Scheduler {
           } else if (channel.queue.nonEmpty) {
             val (ch, elem) = channel.dequeue()
             channels = channels + (channel.id -> ch)
-            val currentFiber = fiber.copy(coroutine = Pure(elem))
+            val currentFiber = fiber.updateFlow(Pure(elem))
             running = running.filterNot(_ eq fiber)
             ready = currentFiber +: ready
             if (channel.writeWait.nonEmpty) {
@@ -105,7 +104,7 @@ object Scheduler {
             pool.execute(() => runLoop())
           } else {
             running = running.filterNot(_ eq fiber)
-            val currentFiber = fiber.copy(coroutine = Nop)
+            val currentFiber = fiber.updateFlow(Nop)
             val ch = channel.waitForRead(currentFiber)
             channels = channels + (channel.id -> ch)
             pool.execute(() => runLoop())
@@ -115,11 +114,11 @@ object Scheduler {
           val channel = channels(id)
           if (channel.readWait.nonEmpty) {
             running = running.filterNot(_ eq fiber)
-            val currentFiber = fiber.copy(coroutine = Pure(()))
+            val currentFiber = fiber.updateFlow(Pure(()))
             ready = currentFiber +: ready
             val (ch, f) = channel.getFirstWaitingForRead()
             channels = channels + (channel.id -> ch)
-            val newFiber = f.asInstanceOf[Fiber[Any]].copy(coroutine = Pure(elem))
+            val newFiber = f.asInstanceOf[Fiber[Any]].updateFlow(Pure(elem))
             ready = newFiber +: ready
             pool.execute(() => runLoop())
           } else {
@@ -127,11 +126,11 @@ object Scheduler {
               val currentChannel = channel.enqueue(elem)
               channels = channels + (channel.id -> currentChannel)
               running = running.filterNot(_ eq fiber)
-              val currentFiber = fiber.copy(coroutine = Pure(()))
+              val currentFiber = fiber.updateFlow(Pure(()))
               ready = currentFiber +: ready
               pool.execute(() => runLoop())
             } else {
-              val currentFiber = fiber.copy(coroutine = Pure(()))
+              val currentFiber = fiber.updateFlow(Pure(()))
               val currentChannel = channel.waitForWrite(elem, currentFiber)
               channels = channels + (channel.id -> currentChannel)
               running = running.filterNot(_ eq fiber)
@@ -156,7 +155,7 @@ object Scheduler {
         pool.execute { () =>
           val fiber = suspended(requestId)
           suspended = suspended - requestId
-          val currentFiber = fiber.copy(coroutine = Pure(r))
+          val currentFiber = fiber.updateFlow(Pure(r))
           ready = currentFiber +: ready
           runLoop()
         }
