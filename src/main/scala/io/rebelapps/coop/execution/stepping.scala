@@ -10,9 +10,14 @@ import scala.annotation.tailrec
 
 object stepping {
 
-  //  def step(exec: AsyncRunner)(coroutine: Coop[_]): State[CallStack, T] = {
-  //todo make it tail recursive
-  @tailrec
+  /**
+   * Evaluates one step of coroutine flow.
+   *
+   * @param exec
+   * @param coroutine
+   * @param stack
+   * @return
+   */
   def step(exec: AsyncRunner)(coroutine: Coop[_], stack: util.Stack[Frame]): Either[Coop[Any], Result] = {
     coroutine match {
       case Pure(value) =>
@@ -24,11 +29,11 @@ object stepping {
         }
       case FlatMap(fa, f) =>
         stack.push(Continuation(f))
-        step(exec)(fa, stack)
+        fa.asLeft
 
       case Map(coroutine, f) =>
         stack.push(Continuation(f andThen Pure.apply))
-        step(exec)(coroutine, stack)
+        coroutine.asLeft
 
       case Async(go) =>
         val reqId = exec(go)
