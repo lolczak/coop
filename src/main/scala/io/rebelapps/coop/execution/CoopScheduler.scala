@@ -18,12 +18,12 @@ object CoopScheduler {
 
   def run[A](coroutine: Coop[A]): Future[A] = {
     val fiber = Fiber[Any](coroutine)
-    pool.execute { () =>
-      runtimeCtxRef.update(_.enqueueReady(fiber))
-      runLoop()
-    }
+    runtimeCtxRef.update(_.enqueueReady(fiber))
+    tryAwakeOneCoroutine()
     fiber.getFuture.asInstanceOf[Future[A]]
   }
+
+  private def tryAwakeOneCoroutine(): Unit = pool.execute(() => runLoop())
 
   def runLoop(): Unit = {
     runtimeCtxRef.modifyWhen(_.hasReadyFibers()) { _.moveFirstReadyToRunning() } match {
@@ -56,7 +56,7 @@ object CoopScheduler {
             runtimeCtxRef.update(_.removeRunning(fiber))
             runtimeCtxRef.update(_.enqueueReady(fiber))
             run(coroutine)
-            pool.execute(() => runLoop()) //wakes creator
+            tryAwakeOneCoroutine() //wakes creator
 
           case ChannelCreation(size, deferred) =>
             val id = UUID.randomUUID()
@@ -65,7 +65,7 @@ object CoopScheduler {
             runtimeCtxRef.update(_.removeRunning(fiber))
             runtimeCtxRef.update(_.enqueueReady(fiber))
             deferred.fill(channel)
-            pool.execute(() => runLoop()) //wakes channel creator
+            tryAwakeOneCoroutine() //wakes channel creator
 
           case ChannelRead(id, deferred) =>
             val channel = runtimeCtxRef.get().getChannel(id)
@@ -76,8 +76,8 @@ object CoopScheduler {
               deferred.fill(wElem)
               runtimeCtxRef.update(_.removeRunning(fiber))
               runtimeCtxRef.update(_.enqueueReady(fiber))
-              pool.execute(() => runLoop()) //wakes reader
-              pool.execute(() => runLoop()) //wakes writer
+              tryAwakeOneCoroutine() //wakes reader
+              tryAwakeOneCoroutine() //wakes writer
             } else if (channel.queue.nonEmpty) {
               val (ch, elem) = channel.dequeue()
               runtimeCtxRef.update(_.upsertChannel(channel.id, ch))
@@ -89,14 +89,14 @@ object CoopScheduler {
                 val currentChannel = ch2.enqueue(wElem)
                 runtimeCtxRef.update(_.upsertChannel(channel.id, currentChannel))
                 runtimeCtxRef.update(_.enqueueReady(wFiber.asInstanceOf[Fiber[Any]]))
-                pool.execute(() => runLoop()) //wakes writer
+                tryAwakeOneCoroutine() //wakes writer
               }
-              pool.execute(() => runLoop()) //wakes trader
+              tryAwakeOneCoroutine() //wakes trader
             } else {
               runtimeCtxRef.update(_.removeRunning(fiber))
               val ch = channel.waitForRead(fiber, deferred)
               runtimeCtxRef.update(_.upsertChannel(channel.id, ch))
-              pool.execute(() => runLoop()) //wakes writer
+              tryAwakeOneCoroutine() //wakes writer
             }
 
           case ChannelWrite(id, elem) =>
@@ -120,7 +120,7 @@ object CoopScheduler {
                 runtimeCtxRef.update(_.removeRunning(fiber))
               }
             }
-            pool.execute(() => runLoop())//wakes reader
+            tryAwakeOneCoroutine()//wakes reader
 
           case _ =>
             println("imposible")
