@@ -82,7 +82,7 @@ object CoopScheduler {
             if (channel.queue.isEmpty && channel.writeWait.nonEmpty) {
               val (ch, (wFiber, wElem)) = channel.getFirstWaitingForWrite()
               runtimeCtxRef.update(_.upsertChannel(channel.id, ch))
-              runtimeCtxRef.update(_.enqueueReady(wFiber.asInstanceOf[Fiber[Any]]))
+              runtimeCtxRef.update(_.enqueueReady(wFiber))
               deferred.fill(wElem)
               runtimeCtxRef.update(_.removeRunning(fiber))
               runtimeCtxRef.update(_.enqueueReady(fiber))
@@ -98,7 +98,7 @@ object CoopScheduler {
                 val (ch2, (wFiber, wElem)) = ch.getFirstWaitingForWrite()
                 val currentChannel = ch2.enqueue(wElem)
                 runtimeCtxRef.update(_.upsertChannel(channel.id, currentChannel))
-                runtimeCtxRef.update(_.enqueueReady(wFiber.asInstanceOf[Fiber[Any]]))
+                runtimeCtxRef.update(_.enqueueReady(wFiber))
                 tryAwakeOneCoroutine() //wakes writer
               }
               tryAwakeOneCoroutine() //wakes trader
