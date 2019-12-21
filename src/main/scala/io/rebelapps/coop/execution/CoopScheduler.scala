@@ -53,27 +53,26 @@ object CoopScheduler {
 
           case CreateFiber(coroutine) =>
             runtimeCtxRef.update(_.removeRunning(fiber))
-            fiber.updateFlow(Pure(())) //todo update it in step
             runtimeCtxRef.update(_.enqueueReady(fiber))
             run(coroutine)
             pool.execute(() => runLoop())
 
-          case ChannelCreation(size) =>
+          case ChannelCreation(size, deferred) =>
             val id = UUID.randomUUID()
             val channel = new SimpleChannel[Any](id, size)
             runtimeCtxRef.update(_.upsertChannel(id, channel))
             runtimeCtxRef.update(_.removeRunning(fiber))
-            fiber.updateFlow(Pure(channel)) //todo use box
             runtimeCtxRef.update(_.enqueueReady(fiber))
+            deferred.fill(channel)
             pool.execute(() => runLoop())
 
-          case ChannelRead(id) =>
+          case ChannelRead(id, deferred) =>
             val channel = runtimeCtxRef.get().getChannel(id)
             if (channel.queue.isEmpty && channel.writeWait.nonEmpty) {
               val (ch, (wFiber, wElem)) = channel.getFirstWaitingForWrite()
               runtimeCtxRef.update(_.upsertChannel(channel.id, ch))
               runtimeCtxRef.update(_.enqueueReady(wFiber.asInstanceOf[Fiber[Any]]))
-              fiber.updateFlow(Pure(wElem))
+              deferred.fill(wElem)
               runtimeCtxRef.update(_.removeRunning(fiber))
               runtimeCtxRef.update(_.enqueueReady(fiber))
               pool.execute(() => runLoop())
@@ -81,7 +80,7 @@ object CoopScheduler {
             } else if (channel.queue.nonEmpty) {
               val (ch, elem) = channel.dequeue()
               runtimeCtxRef.update(_.upsertChannel(channel.id, ch))
-              fiber.updateFlow(Pure(elem))
+              deferred.fill(elem)
               runtimeCtxRef.update(_.removeRunning(fiber))
               runtimeCtxRef.update(_.enqueueReady(fiber))
               if (channel.writeWait.nonEmpty) {
@@ -94,8 +93,7 @@ object CoopScheduler {
               pool.execute(() => runLoop())
             } else {
               runtimeCtxRef.update(_.removeRunning(fiber))
-              val currentFiber = fiber.updateFlow(Nop)
-              val ch = channel.waitForRead(currentFiber)
+              val ch = channel.waitForRead(fiber, deferred)
               runtimeCtxRef.update(_.upsertChannel(channel.id, ch))
               pool.execute(() => runLoop())
             }
@@ -104,27 +102,24 @@ object CoopScheduler {
             val channel = runtimeCtxRef.get().getChannel(id)
             if (channel.readWait.nonEmpty) {
               runtimeCtxRef.update(_.removeRunning(fiber))
-              fiber.updateFlow(Pure(())) //todo update in step 1
               runtimeCtxRef.update(_.enqueueReady(fiber))
-              val (ch, f) = channel.getFirstWaitingForRead()
+              val (ch, (f, defVal)) = channel.getFirstWaitingForRead()
               runtimeCtxRef.update(_.upsertChannel(channel.id, ch))
-              val newFiber = f.asInstanceOf[Fiber[Any]].updateFlow(Pure(elem))
-              runtimeCtxRef.update(_.enqueueReady(newFiber))
-              pool.execute(() => runLoop())
+              defVal.fill(elem)
+              runtimeCtxRef.update(_.enqueueReady(f))
+              pool.execute(() => runLoop())//todo move outside ifelse
             } else {
               if (channel.queue.size < channel.queueLength) {
                 val currentChannel = channel.enqueue(elem)
                 runtimeCtxRef.update(_.upsertChannel(channel.id, currentChannel))
                 runtimeCtxRef.update(_.removeRunning(fiber))
-                fiber.updateFlow(Pure(())) //todo update in step 2
                 runtimeCtxRef.update(_.enqueueReady(fiber))
-                pool.execute(() => runLoop())
+                pool.execute(() => runLoop())//todo move outside ifelse
               } else {
-                val currentFiber = fiber.updateFlow(Pure(())) //todo update in step 3
-                val currentChannel = channel.waitForWrite(elem, currentFiber)
+                val currentChannel = channel.waitForWrite(elem, fiber)
                 runtimeCtxRef.update(_.upsertChannel(channel.id, currentChannel))
                 runtimeCtxRef.update(_.removeRunning(fiber))
-                pool.execute(() => runLoop()) //?
+                pool.execute(() => runLoop()) //todo move outside ifelse
               }
             }
 

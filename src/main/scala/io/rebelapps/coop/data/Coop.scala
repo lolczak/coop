@@ -26,6 +26,31 @@ case class ReadChannel[A](id: UUID) extends Coop[A]
 
 case class WriteChannel[A](id: UUID, elem: A) extends Coop[Unit]
 
+private[coop] class DeferredValue[A] extends Coop[A] {
+
+  @volatile
+  private var maybeValue: Option[A] = None
+
+  def isEmpty = maybeValue.isEmpty
+
+  def fill(value: A): Unit = {
+    if (maybeValue.isEmpty) {
+      maybeValue = Some(value)
+    } else {
+      throw new IllegalArgumentException("You try to fill non empty deferred value")
+    }
+  }
+
+  def value: A = maybeValue.get
+
+}
+
+object DeferredValue {
+
+  def apply[A]: DeferredValue[A] = new DeferredValue[A]()
+
+}
+
 case object Nop extends Coop[Nothing]
 
 //case class RaiseError(exception: Exception) extends Coroutine[Nothing]

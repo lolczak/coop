@@ -2,13 +2,13 @@ package io.rebelapps.coop.execution
 
 import java.util.UUID
 
-import io.rebelapps.coop.data.{Channel, Coop, ReadChannel, WriteChannel}
+import io.rebelapps.coop.data.{Channel, Coop, DeferredValue, ReadChannel, WriteChannel}
 
 case class SimpleChannel[A](id: UUID,
                             queueLength: Int,
                             queue: Vector[A] = Vector.empty,
-                            readWait: Vector[Fiber[_]] = Vector.empty,
-                            writeWait: Vector[(Fiber[_], Any)] = Vector.empty
+                            readWait: Vector[(Fiber[Any], DeferredValue[Any])] = Vector.empty,
+                            writeWait: Vector[(Fiber[Any], Any)] = Vector.empty
                            )
   extends Channel[A] {
 
@@ -25,16 +25,16 @@ case class SimpleChannel[A](id: UUID,
     this.copy(queue = queue.init) -> tail
   }
 
-  def waitForWrite(elem: A, fiber: Fiber[_]) = this.copy(writeWait = (fiber -> elem) +: writeWait)
+  def waitForWrite(elem: A, fiber: Fiber[Any]) = this.copy(writeWait = (fiber -> elem) +: writeWait)
 
-  def waitForRead(fiber: Fiber[_]) = this.copy(readWait = fiber +: readWait)
+  def waitForRead(fiber: Fiber[Any], defVal: DeferredValue[Any]) = this.copy(readWait = (fiber -> defVal) +: readWait)
 
-  def getFirstWaitingForRead(): (SimpleChannel[A], Fiber[_]) = {
+  def getFirstWaitingForRead(): (SimpleChannel[A], (Fiber[Any], DeferredValue[Any])) = {
     val fiber = readWait.last
     this.copy(readWait = readWait.init) -> fiber
   }
 
-  def getFirstWaitingForWrite(): (SimpleChannel[A], (Fiber[_], Any)) = {
+  def getFirstWaitingForWrite(): (SimpleChannel[A], (Fiber[Any], Any)) = {
     val fiber = writeWait.last
     this.copy(writeWait = writeWait.init) -> fiber
   }

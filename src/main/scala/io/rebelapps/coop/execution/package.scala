@@ -2,7 +2,7 @@ package io.rebelapps.coop
 
 import java.util.UUID
 
-import io.rebelapps.coop.data.Coop
+import io.rebelapps.coop.data.{Coop, DeferredValue}
 
 package object execution {
 
@@ -16,8 +16,8 @@ package object execution {
   //todo refactor to suspension -> like Channel suspension
   sealed trait Termination extends Result
 
-  case class ChannelCreation(size: Int)         extends Termination
-  case class ChannelRead(id: UUID)              extends Termination
+  case class ChannelCreation(size: Int, defVal: DeferredValue[SimpleChannel[Any]])         extends Termination
+  case class ChannelRead(id: UUID, defVal: DeferredValue[Any])              extends Termination
   case class ChannelWrite(id: UUID, value: Any) extends Termination
   case class Suspended(requestId: RequestId)    extends Termination
 

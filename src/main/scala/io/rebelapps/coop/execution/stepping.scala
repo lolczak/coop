@@ -1,12 +1,8 @@
 package io.rebelapps.coop.execution
 
-import java.util
-
 import cats.implicits._
 import io.rebelapps.coop.data._
 import io.rebelapps.coop.execution.stack._
-
-import scala.annotation.tailrec
 
 object stepping {
 
@@ -19,6 +15,18 @@ object stepping {
    */
   def step(exec: AsyncRunner)(fiber: Fiber[Any]): Either[Fiber[Any], Result] = {
     fiber.coroutine match {
+      case defVal: DeferredValue[_] if defVal.isEmpty =>
+        throw new IllegalStateException("Cannot eval empty deferred")
+
+      case defVal: DeferredValue[_] =>
+        val value = defVal.value
+        if (fiber.stack.empty()) {
+          Return(value).asRight
+        } else {
+          val Continuation(f) = fiber.stack.pop()
+          fiber.updateFlow(f(value)).asLeft
+        } //todo remove duplication
+
       case Pure(value) =>
         if (fiber.stack.empty()) {
           Return(value).asRight
@@ -39,12 +47,17 @@ object stepping {
         Suspended(reqId).asRight
 
       case CreateChannel(size) =>
-        ChannelCreation(size).asRight
+        val defVal = DeferredValue[SimpleChannel[Any]]
+        fiber.updateFlow(defVal)
+        ChannelCreation(size, defVal).asRight
 
       case ReadChannel(id) =>
-        ChannelRead(id).asRight
+        val defVal = DeferredValue[Any]
+        fiber.updateFlow(defVal)
+        ChannelRead(id, defVal).asRight
 
       case WriteChannel(id, elem) =>
+        fiber.updateFlow(Pure(()))
         ChannelWrite(id, elem).asRight
 
       case Eval(thunk) =>
@@ -52,6 +65,7 @@ object stepping {
         fiber.updateFlow(Pure(value)).asLeft
 
       case Spawn(coroutine) =>
+        fiber.updateFlow(Pure(()))
         CreateFiber(coroutine).asRight
 
       case _ => throw new RuntimeException("imposible")
