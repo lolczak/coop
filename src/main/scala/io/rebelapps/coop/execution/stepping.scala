@@ -9,11 +9,10 @@ object stepping {
   /**
    * Evaluates one step of coroutine flow.
    *
-   * @param exec
    * @param fiber
    * @return left when flow can be processed further, right if flow is suspended or terminated
    */
-  def step(exec: AsyncRunner)(fiber: Fiber[Any]): Either[Fiber[Any], Result] = {
+  def step(fiber: Fiber[Any]): Either[Fiber[Any], Result] = {
     fiber.coroutine match {
       case defVal: DeferredValue[_] if defVal.isEmpty =>
         throw new IllegalStateException("Cannot eval empty deferred")
@@ -43,8 +42,9 @@ object stepping {
         fiber.updateFlow(coroutine).asLeft
 
       case Async(go) =>
-        val reqId = exec(go)
-        Suspended(reqId).asRight
+        val defVal = DeferredValue[Any]
+        fiber.updateFlow(defVal)
+        Suspended(go, defVal).asRight
 
       case CreateChannel(size) =>
         val defVal = DeferredValue[SimpleChannel[Any]]

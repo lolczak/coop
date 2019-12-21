@@ -4,7 +4,7 @@ import java.util.UUID
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.atomic.AtomicReference
 
-import io.rebelapps.coop.data.{Coop, Nop, Pure}
+import io.rebelapps.coop.data.{Coop, DeferredValue, Nop, Pure}
 import io.rebelapps.coop.execution.atomic._
 
 import scala.annotation.tailrec
@@ -33,7 +33,7 @@ object CoopScheduler {
       case Some((_, fiber)) =>
         @tailrec
         def go(fiber: Fiber[Any]): Result = {
-          val maybeResult = stepping.step(exec)(fiber)
+          val maybeResult = stepping.step(fiber)
           maybeResult match {
             case Left(next)    => go(next)
             case Right(result) => result
@@ -47,7 +47,8 @@ object CoopScheduler {
             runtimeCtxRef.update(_.removeRunning(fiber))
             fiber.complete(value)
 
-          case Suspended(requestId) =>
+          case Suspended(go, deferred) =>
+            val requestId = exec(deferred)(go)
             runtimeCtxRef.update(_.removeRunning(fiber))
             runtimeCtxRef.update(_.addSuspended(requestId, fiber))
 
@@ -131,15 +132,17 @@ object CoopScheduler {
 
   }
 
-  val exec: AsyncRunner = { go =>
+  type AsyncRunner = DeferredValue[Any] => ((Either[Exception, Any] => Unit) => Unit) => RequestId
+
+  val exec: AsyncRunner = defVal => { go =>
     val requestId = UUID.randomUUID()
     go {
       case Left(ex) => throw ex
-      case Right(r) =>
+      case Right(result) =>
         pool.execute { () =>
           val fiber = runtimeCtxRef.modify_(_.removeSuspended(requestId))
-          fiber.updateFlow(Pure(r)) //todo use box
           runtimeCtxRef.update(_.enqueueReady(fiber))
+          defVal.fill(result)
           runLoop()
         }
     }
