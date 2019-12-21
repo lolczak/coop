@@ -1,16 +1,14 @@
 package io.rebelapps.coop.execution
 
-import java.util
 import java.util.UUID
 import java.util.concurrent.ScheduledThreadPoolExecutor
 
 import io.rebelapps.coop.data.{Coop, Nop, Pure}
-import io.rebelapps.coop.execution.stack.Frame
 
 import scala.annotation.tailrec
 import scala.concurrent.Future
 
-object Scheduler {
+object CoopScheduler {
 
   private val pool = new ScheduledThreadPoolExecutor(1, CoopThreadFactory)
 

@@ -3,7 +3,7 @@ package io.rebelapps
 import cats.implicits._
 import io.rebelapps.coop.data.{Channel, Coop}
 import io.rebelapps.coop.data.Coop._
-import io.rebelapps.coop.execution.Scheduler
+import io.rebelapps.coop.execution.CoopScheduler
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -44,8 +44,8 @@ object Showcase extends App {
 
   println(fiber1)
 
-  val future1 = Scheduler.run(fiber1 map (_ + 5))
-  val future2 = Scheduler.run(fiber2 map(_ + 5))
+  val future1 = CoopScheduler.run(fiber1 map (_ + 5))
+  val future2 = CoopScheduler.run(fiber2 map(_ + 5))
 
   val result1 = Await.result(future1, 10 seconds)
   val result2 = Await.result(future2, 10 seconds)
@@ -55,7 +55,7 @@ object Showcase extends App {
 
   require(result1 == 10109)
   require(result2 == 33)
-  Scheduler.shutdown()
+  CoopScheduler.shutdown()
 
   //backlog
   //todo *)refactoring
