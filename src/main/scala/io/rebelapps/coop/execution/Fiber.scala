@@ -7,6 +7,12 @@ import io.rebelapps.coop.execution.stack.Frame
 
 import scala.concurrent.{Future, Promise}
 
+/**
+ * Represents execution of coroutine.
+ *
+ * @param coroutine
+ * @tparam A
+ */
 class Fiber[A](var coroutine: Coop[A]) {
 
   val stack: util.Stack[Frame] = new util.Stack()
