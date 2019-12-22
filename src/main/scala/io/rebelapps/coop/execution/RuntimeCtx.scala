@@ -4,7 +4,7 @@ import java.util.UUID
 
 import scala.collection.immutable.Queue
 
-case class RuntimeCtx(running: Vector[Fiber[Any]] = Vector.empty,
+case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
                       ready: Queue[Fiber[Any]] = Queue.empty,
                       suspended: Map[UUID, Fiber[Any]] = Map.empty,
                       channels: Map[UUID, SimpleChannel[Any]] = Map.empty) {
@@ -17,10 +17,10 @@ case class RuntimeCtx(running: Vector[Fiber[Any]] = Vector.empty,
 
   def moveFirstReadyToRunning(): (RuntimeCtx, Fiber[Any]) = {
     val (fiber, queue) = ready.dequeue
-    this.copy(ready = queue, running = fiber +: running) -> fiber
+    this.copy(ready = queue, running = running + fiber) -> fiber
   }
 
-  def removeRunning(fiber: Fiber[_]): RuntimeCtx = this.copy(running = running.filterNot(_ eq fiber))
+  def removeRunning(fiber: Fiber[Any]): RuntimeCtx = this.copy(running = running - fiber)
 
   def removeSuspended(requestId: RequestId): (RuntimeCtx, Fiber[Any]) = {
     val fiber = suspended(requestId)
