@@ -22,12 +22,12 @@ case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
 
   def removeRunning(fiber: Fiber[Any]): RuntimeCtx = this.copy(running = running - fiber)
 
-  def removeSuspended(requestId: RequestId): (RuntimeCtx, Fiber[Any]) = {
+  def removeSuspended(requestId: UUID): (RuntimeCtx, Fiber[Any]) = {
     val fiber = suspended(requestId)
     this.copy(suspended = suspended - requestId) -> fiber
   }
 
-  def addSuspended(requestId: RequestId, fiber: Fiber[Any]): RuntimeCtx = {
+  def addSuspended(requestId: UUID, fiber: Fiber[Any]): RuntimeCtx = {
     this.copy(suspended = suspended + (requestId -> fiber))
   }
 

@@ -51,19 +51,20 @@ object CoopScheduler {
             fiber.complete(value)
 
           case Suspended(go, deferred) =>
-            val requestId = UUID.randomUUID()
             runtimeCtxRef.update { ctx =>
               ctx
                 .removeRunning(fiber)
-                .addSuspended(requestId, fiber)
+                .addSuspended(fiber.id, fiber)
             }
             go {
               case Left(ex)      => throw ex
               case Right(result) =>
                 pool.execute { () =>
                   runtimeCtxRef.update { ctx =>
-                    val (updated, fiber) = ctx.removeSuspended(requestId)
-                    updated.enqueueReady(fiber)
+                    ctx
+                      .removeSuspended(fiber.id)
+                      ._1
+                      .enqueueReady(fiber)
                   }
                   deferred.fill(result)
                   tryAwakeCoroutine()
