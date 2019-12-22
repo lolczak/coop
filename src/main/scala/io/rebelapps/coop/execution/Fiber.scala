@@ -1,6 +1,7 @@
 package io.rebelapps.coop.execution
 
 import java.util
+import java.util.UUID
 
 import io.rebelapps.coop.data.Coop
 import io.rebelapps.coop.execution.stack.Frame
@@ -14,6 +15,8 @@ import scala.concurrent.{Future, Promise}
  * @tparam A
  */
 class Fiber[A](var coroutine: Coop[A]) {
+
+  val id = UUID.randomUUID()
 
   val stack: util.Stack[Frame] = new util.Stack()
 
@@ -30,6 +33,14 @@ class Fiber[A](var coroutine: Coop[A]) {
   }
 
   def getFuture: Future[A] = promise.future
+
+  override def hashCode(): Int = id.hashCode()
+
+  override def equals(obj: Any): Boolean =
+    obj match {
+      case that: Fiber[_] => this.id == that.id
+      case _              => false
+    }
 
 }
 

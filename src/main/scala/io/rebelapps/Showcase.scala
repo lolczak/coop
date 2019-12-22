@@ -12,7 +12,7 @@ object Showcase extends App {
 
   val BufSize = 0
 
-  val GenMsg = 100
+  val GenMsg = 1000000
 
   def loop(inbound: Channel[Int], outbound: Channel[Int]): Coop[Unit] =
     (inbound.read() >>= ((i: Int) => outbound.write(i * 2))) >> loop(inbound, outbound)
@@ -44,21 +44,27 @@ object Showcase extends App {
 
   println(fiber1)
 
+  val start = System.currentTimeMillis()
+
   val future1 = CoopScheduler.run(fiber1 map (_ + 5))
   val future2 = CoopScheduler.run(fiber2 map(_ + 5))
 
-  val result1 = Await.result(future1, 10 seconds)
-  val result2 = Await.result(future2, 10 seconds)
+  val result1 = Await.result(future1, 100 seconds)
+  val result2 = Await.result(future2, 100 seconds)
+
+  val end = System.currentTimeMillis()
+
+  println(s"Took: ${end - start} millis")
 
   println(result1)
   println(result2)
 
-  require(result1 == 10109)
-  require(result2 == 33)
   CoopScheduler.shutdown()
 
+  require(result1 == -726379959)
+  require(result2 == 33)
+
   //backlog
-  //todo *)refactoring
   //todo *)channel release
   //todo *)channel multiplexer
   //todo *)bifunctor
