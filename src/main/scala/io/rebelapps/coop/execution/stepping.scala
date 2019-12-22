@@ -49,16 +49,16 @@ object stepping {
       case CreateChannel(size) =>
         val defVal = DeferredValue[SimpleChannel[Any]]
         fiber.updateFlow(defVal)
-        ChannelCreation(size, defVal).asRight
+        SuspendedOnChannelCreation(size, defVal).asRight
 
       case ReadChannel(id) =>
         val defVal = DeferredValue[Any]
         fiber.updateFlow(defVal)
-        ChannelRead(id, defVal).asRight
+        SuspendedOnChannelRead(id, defVal).asRight
 
       case WriteChannel(id, elem) =>
         fiber.updateFlow(Pure(()))
-        ChannelWrite(id, elem).asRight
+        SuspendedOnChannelWrite(id, elem).asRight
 
       case Eval(thunk) =>
         val value = thunk()
@@ -66,7 +66,7 @@ object stepping {
 
       case Spawn(coroutine) =>
         fiber.updateFlow(Pure(()))
-        CreateFiber(coroutine).asRight
+        SuspendedOnCoroutineCreation(coroutine).asRight
 
       case _ => throw new RuntimeException("imposible")
     }

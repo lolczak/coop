@@ -82,7 +82,7 @@ class CoopScheduler(poolSize: Int) {
                   tryResume()
               }
 
-            case CreateFiber(coroutine) =>
+            case SuspendedOnCoroutineCreation(coroutine) =>
               runtimeCtxRef.update { ctx =>
                 ctx
                   .removeRunning(fiber)
@@ -91,7 +91,7 @@ class CoopScheduler(poolSize: Int) {
               run(coroutine)
               tryResume() //resume creator
 
-            case ChannelCreation(size, deferred) =>
+            case SuspendedOnChannelCreation(size, deferred) =>
               val id = UUID.randomUUID()
               val channel = new SimpleChannel[Any](id, size)
               runtimeCtxRef.update { ctx =>
@@ -103,7 +103,7 @@ class CoopScheduler(poolSize: Int) {
               deferred.fill(channel)
               tryResume() //resume channel creator
 
-            case ChannelRead(id, deferred) =>
+            case SuspendedOnChannelRead(id, deferred) =>
               val channelRef = runtimeCtxRef.get().getChannelRef(id)
               channelRef.modifyWith_[ReadCase] {
                 case channel if channel.queue.isEmpty && channel.writeWait.nonEmpty =>
@@ -161,7 +161,7 @@ class CoopScheduler(poolSize: Int) {
                   throw new RuntimeException
               }
 
-            case ChannelWrite(id, elem) =>
+            case SuspendedOnChannelWrite(id, elem) =>
               val channelRef = runtimeCtxRef.get().getChannelRef(id)
               channelRef.modifyWith_[WriteCase] {
                 case channel if channel.readWait.nonEmpty =>
@@ -184,6 +184,7 @@ class CoopScheduler(poolSize: Int) {
                       .enqueueReady(reader)
                   }
                   tryResume() //resume reader
+
                 case Some(EmptyReadWaitAndQueueNotFull) =>
                   runtimeCtxRef.update { ctx =>
                     ctx
