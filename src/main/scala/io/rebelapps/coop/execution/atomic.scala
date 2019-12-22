@@ -31,6 +31,27 @@ object atomic {
 
     def modify_[B](f: A => (A, B)): B = modify(f)._2
 
+    def modifyWith[B](f: PartialFunction[A, (A, B)]): Option[(A, B)] = {
+      @tailrec
+      def loop(): Option[(A, B)] = {
+        val prev = ref.get()
+        if (f.isDefinedAt(prev)) {
+          val (next, result) = f(prev)
+          if (ref.compareAndSet(prev, next)) {
+            return Some(next -> result)
+          } else {
+            loop()
+          }
+        } else {
+          return None
+        }
+      }
+
+      loop()
+    }
+
+    def modifyWith_[B](f: PartialFunction[A, (A, B)]): Option[B] = modifyWith(f).map(_._2)
+
     def modifyWhen[B](cond: A => Boolean)(f: A => (A, B)): Option[(A, B)] = {
       @tailrec
       def loop(): Option[(A, B)] = {

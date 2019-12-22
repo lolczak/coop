@@ -4,7 +4,7 @@ import java.util.UUID
 import java.util.concurrent.{ScheduledThreadPoolExecutor, Semaphore}
 import java.util.concurrent.atomic.AtomicReference
 
-import io.rebelapps.coop.data.Coop
+import io.rebelapps.coop.data.{Coop, DeferredValue}
 import io.rebelapps.coop.execution.atomic._
 
 import scala.annotation.tailrec
@@ -38,7 +38,7 @@ class CoopScheduler(poolSize: Int) {
     resumeCount.release(count)
   }
 
-  def runLoop(): Unit = {
+  private def runLoop(): Unit = {
     do {
       resumeCount.acquire()
       if (!running) return
@@ -95,7 +95,7 @@ class CoopScheduler(poolSize: Int) {
               val channel = new SimpleChannel[Any](id, size)
               runtimeCtxRef.update { ctx =>
                 ctx
-                  .upsertChannel(id, channel)
+                  .insertChannel(id, channel)
                   .removeRunning(fiber)
                   .enqueueReady(fiber)
               }
@@ -103,79 +103,111 @@ class CoopScheduler(poolSize: Int) {
               tryResume() //resume channel creator
 
             case ChannelRead(id, deferred) =>
-              val channel = runtimeCtxRef.get().getChannel(id)
-              if (channel.queue.isEmpty && channel.writeWait.nonEmpty) {
-                val (ch, (wFiber, wElem)) = channel.getFirstWaitingForWrite()
-                deferred.fill(wElem)
-                runtimeCtxRef.update { ctx =>
-                  ctx
-                    .upsertChannel(channel.id, ch)
-                    .enqueueReady(wFiber)
-                    .removeRunning(fiber)
-                    .enqueueReady(fiber)
-                }
-                tryResume(2) //resume reader and writer
-              } else if (channel.queue.nonEmpty) {
-                val (ch, elem) = channel.dequeue()
-                deferred.fill(elem)
-                runtimeCtxRef.update { ctx =>
-                  ctx
-                    .upsertChannel(channel.id, ch)
-                    .removeRunning(fiber)
-                    .enqueueReady(fiber)
-                }
-                if (channel.writeWait.nonEmpty) {
-                  val (ch2, (wFiber, wElem)) = ch.getFirstWaitingForWrite()
-                  val currentChannel = ch2.enqueue(wElem)
-                  runtimeCtxRef.update { ctx =>
-                    ctx
-                      .upsertChannel(channel.id, currentChannel)
-                      .enqueueReady(wFiber)
-                  }
-                  tryResume() //resume writer
-                }
-                tryResume() //resume trader
-              } else {
-                val ch = channel.waitForRead(fiber, deferred)
-                runtimeCtxRef.update { ctx =>
-                  ctx
-                    .upsertChannel(channel.id, ch)
-                    .removeRunning(fiber)
-                }
-                tryResume() //resume writer
-              }
+              sealed trait ReadCase
+              case class EmptyQueueNonEmptyWaitingWriters(writer: Fiber[Any], elem: Any) extends ReadCase
+              case class NonEmptyQueueEmptyWaitingWriters(elem: Any) extends ReadCase
+              case class NonEmptyQueueNonEmptyWaitingWriters(writer: Fiber[Any], elem: Any) extends ReadCase
+              case object BlockOnRead extends ReadCase
+              val channelRef = runtimeCtxRef.get().getChannelRef(id)
+              channelRef.modifyWith_[ReadCase] {
+                case channel if channel.queue.isEmpty && channel.writeWait.nonEmpty =>
+                  val (ch, (wFiber, wElem)) = channel.getFirstWaitingForWrite()
+                  ch -> EmptyQueueNonEmptyWaitingWriters(wFiber, wElem)
 
-            case ChannelWrite(id, elem) =>
-              val channel = runtimeCtxRef.get().getChannel(id)
-              if (channel.readWait.nonEmpty) {
-                val (ch, (f, defVal)) = channel.getFirstWaitingForRead()
-                defVal.fill(elem)
-                runtimeCtxRef.update { ctx =>
-                  ctx
-                    .removeRunning(fiber)
-                    .enqueueReady(fiber)
-                    .upsertChannel(channel.id, ch)
-                    .enqueueReady(f)
-                }
-              } else {
-                if (channel.queue.size < channel.queueLength) {
-                  val currentChannel = channel.enqueue(elem)
+                case channel if channel.queue.nonEmpty && channel.writeWait.isEmpty =>
+                  val (ch, elem) = channel.dequeue()
+                  ch -> NonEmptyQueueEmptyWaitingWriters(elem)
+
+                case channel if channel.queue.nonEmpty && channel.writeWait.nonEmpty =>
+                  val (ch, elem) = channel.dequeue()
+                  val (ch2, (wFiber, wElem)) = ch.getFirstWaitingForWrite()
+                  ch2.enqueue(wElem) -> NonEmptyQueueNonEmptyWaitingWriters(wFiber, elem)
+
+                case channel =>
+                  channel.waitForRead(fiber, deferred) -> BlockOnRead
+
+              } match {
+                case Some(EmptyQueueNonEmptyWaitingWriters(wFiber, wElem)) =>
+                  deferred.fill(wElem)
                   runtimeCtxRef.update { ctx =>
                     ctx
-                      .upsertChannel(channel.id, currentChannel)
+                      .enqueueReady(wFiber)
                       .removeRunning(fiber)
                       .enqueueReady(fiber)
                   }
-                } else {
-                  val currentChannel = channel.waitForWrite(elem, fiber)
+                  tryResume(2) //resume reader and writer
+
+                case Some(NonEmptyQueueEmptyWaitingWriters(elem)) =>
+                  deferred.fill(elem)
                   runtimeCtxRef.update { ctx =>
                     ctx
-                      .upsertChannel(channel.id, currentChannel)
                       .removeRunning(fiber)
+                      .enqueueReady(fiber)
                   }
-                }
+                  tryResume()
+
+                case Some(NonEmptyQueueNonEmptyWaitingWriters(wFiber, elem)) =>
+                  deferred.fill(elem)
+                  runtimeCtxRef.update { ctx =>
+                    ctx
+                      .removeRunning(fiber)
+                      .enqueueReady(fiber)
+                      .enqueueReady(wFiber)
+                  }
+                  tryResume(2)
+
+                case Some(BlockOnRead) =>
+                  runtimeCtxRef.update(_.removeRunning(fiber))
+                  tryResume() //resume writer
+
+                case None =>
+                  println("impossible read case")
+                  throw new RuntimeException
               }
-              tryResume() //resume reader
+
+            case ChannelWrite(id, elem) =>
+              sealed trait WriteCase
+              case class NonEmptyWaitingReaders(reader: Fiber[Any], deferred: DeferredValue[Any]) extends WriteCase
+              case object EmptyReadWaitAndQueueNotFull extends WriteCase
+              case object EmptyReadWaitAndQueueFull extends WriteCase
+              val channelRef = runtimeCtxRef.get().getChannelRef(id)
+              channelRef.modifyWith_[WriteCase] {
+                case channel if channel.readWait.nonEmpty =>
+                  val (ch, (reader, defVal)) = channel.getFirstWaitingForRead()
+                  ch -> NonEmptyWaitingReaders(reader, defVal)
+
+                case channel if channel.readWait.isEmpty && channel.queue.size < channel.queueLength =>
+                  channel.enqueue(elem) -> EmptyReadWaitAndQueueNotFull
+
+                case channel if channel.readWait.isEmpty && channel.queue.size >= channel.queueLength =>
+                  channel.waitForWrite(elem, fiber) -> EmptyReadWaitAndQueueFull
+
+              } match {
+                case Some(NonEmptyWaitingReaders(reader, defVal)) =>
+                  defVal.fill(elem)
+                  runtimeCtxRef.update { ctx =>
+                    ctx
+                      .removeRunning(fiber)
+                      .enqueueReady(fiber)
+                      .enqueueReady(reader)
+                  }
+                  tryResume() //resume reader
+                case Some(EmptyReadWaitAndQueueNotFull) =>
+                  runtimeCtxRef.update { ctx =>
+                    ctx
+                      .removeRunning(fiber)
+                      .enqueueReady(fiber)
+                  }
+                  tryResume() //resume reader
+
+                case Some(EmptyReadWaitAndQueueFull) =>
+                  runtimeCtxRef.update(_.removeRunning(fiber))
+                  tryResume() //resume reader
+
+                case None =>
+                  println("impossible write case")
+                  throw new RuntimeException
+              }
 
             case _ =>
               println("imposible")

@@ -13,7 +13,7 @@ object stepping {
    * @return left when flow can be processed further, right if flow is suspended or terminated
    */
   def step(fiber: Fiber[Any]): Either[Fiber[Any], Exit] = {
-    fiber.coroutine match {
+    fiber.nextOp match {
       case defVal: DeferredValue[_] if defVal.isEmpty =>
         throw new IllegalStateException("Cannot eval empty deferred")
 

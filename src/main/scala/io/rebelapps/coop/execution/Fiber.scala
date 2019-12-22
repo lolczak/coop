@@ -11,10 +11,10 @@ import scala.concurrent.{Future, Promise}
 /**
  * Represents execution of coroutine. It is a mutable object.
  *
- * @param coroutine
+ * @param nextOp
  * @tparam A
  */
-class Fiber[A](var coroutine: Coop[A]) {
+class Fiber[A](var nextOp: Coop[A]) {
 
   val id = UUID.randomUUID()
 
@@ -23,7 +23,7 @@ class Fiber[A](var coroutine: Coop[A]) {
   private val promise: Promise[A] = Promise[A]()
 
   def updateFlow(coop: Coop[A]): Fiber[A] = {
-    coroutine = coop
+    nextOp = coop
     this
   }
 

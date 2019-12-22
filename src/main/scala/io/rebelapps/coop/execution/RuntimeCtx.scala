@@ -1,13 +1,14 @@
 package io.rebelapps.coop.execution
 
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 import scala.collection.immutable.Queue
 
 case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
                       ready: Queue[Fiber[Any]] = Queue.empty,
                       suspended: Set[Fiber[Any]] = Set.empty,
-                      channels: Map[UUID, SimpleChannel[Any]] = Map.empty) {
+                      channels: Map[UUID, AtomicReference[SimpleChannel[Any]]] = Map.empty) {
 
   def enqueueReady(fiber: Fiber[Any]): RuntimeCtx = {
     this.copy(ready = ready.enqueue(fiber))
@@ -30,10 +31,10 @@ case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
     this.copy(suspended = suspended + fiber)
   }
 
-  def upsertChannel(id: UUID, channel: SimpleChannel[Any]): RuntimeCtx = {
-    this.copy(channels = channels + (id -> channel))
+  def insertChannel(id: UUID, channel: SimpleChannel[Any]): RuntimeCtx = {
+    this.copy(channels = channels + (id -> new AtomicReference(channel)))
   }
 
-  def getChannel(id: UUID): SimpleChannel[Any] = channels(id)
+  def getChannelRef(id: UUID): AtomicReference[SimpleChannel[Any]] = channels(id)
 
 }
