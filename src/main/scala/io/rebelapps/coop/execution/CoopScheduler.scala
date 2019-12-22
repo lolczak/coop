@@ -88,7 +88,7 @@ class CoopScheduler(poolSize: Int) {
                   .enqueueReady(fiber)
               }
               run(coroutine)
-              tryResume() //wakes creator
+              tryResume() //resume creator
 
             case ChannelCreation(size, deferred) =>
               val id = UUID.randomUUID()
@@ -100,7 +100,7 @@ class CoopScheduler(poolSize: Int) {
                   .enqueueReady(fiber)
               }
               deferred.fill(channel)
-              tryResume() //wakes channel creator
+              tryResume() //resume channel creator
 
             case ChannelRead(id, deferred) =>
               val channel = runtimeCtxRef.get().getChannel(id)
@@ -114,7 +114,7 @@ class CoopScheduler(poolSize: Int) {
                     .removeRunning(fiber)
                     .enqueueReady(fiber)
                 }
-                tryResume(2) //wakes reader and writer
+                tryResume(2) //resume reader and writer
               } else if (channel.queue.nonEmpty) {
                 val (ch, elem) = channel.dequeue()
                 deferred.fill(elem)
@@ -132,9 +132,9 @@ class CoopScheduler(poolSize: Int) {
                       .upsertChannel(channel.id, currentChannel)
                       .enqueueReady(wFiber)
                   }
-                  tryResume() //wakes writer
+                  tryResume() //resume writer
                 }
-                tryResume() //wakes trader
+                tryResume() //resume trader
               } else {
                 val ch = channel.waitForRead(fiber, deferred)
                 runtimeCtxRef.update { ctx =>
@@ -142,7 +142,7 @@ class CoopScheduler(poolSize: Int) {
                     .upsertChannel(channel.id, ch)
                     .removeRunning(fiber)
                 }
-                tryResume() //wakes writer
+                tryResume() //resume writer
               }
 
             case ChannelWrite(id, elem) =>
@@ -175,7 +175,7 @@ class CoopScheduler(poolSize: Int) {
                   }
                 }
               }
-              tryResume() //wakes reader
+              tryResume() //resume reader
 
             case _ =>
               println("imposible")
