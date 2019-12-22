@@ -47,7 +47,7 @@ object stepping {
         AsyncWait(go, defVal).asRight
 
       case CreateChannel(size) =>
-        val defVal = DeferredValue[SimpleChannel[Any]]
+        val defVal = DeferredValue[BufferedChannel[Any]]
         fiber.updateFlow(defVal)
         SuspendedOnChannelCreation(size, defVal).asRight
 

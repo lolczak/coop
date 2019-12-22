@@ -8,7 +8,7 @@ import scala.collection.immutable.Queue
 case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
                       ready: Queue[Fiber[Any]] = Queue.empty,
                       suspended: Set[Fiber[Any]] = Set.empty,
-                      channels: Map[UUID, AtomicReference[SimpleChannel[Any]]] = Map.empty) {
+                      channels: Map[UUID, AtomicReference[BufferedChannel[Any]]] = Map.empty) {
 
   def enqueueReady(fiber: Fiber[Any]): RuntimeCtx = {
     this.copy(ready = ready.enqueue(fiber))
@@ -31,10 +31,10 @@ case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
     this.copy(suspended = suspended + fiber)
   }
 
-  def insertChannel(id: UUID, channel: SimpleChannel[Any]): RuntimeCtx = {
+  def insertChannel(id: UUID, channel: BufferedChannel[Any]): RuntimeCtx = {
     this.copy(channels = channels + (id -> new AtomicReference(channel)))
   }
 
-  def getChannelRef(id: UUID): AtomicReference[SimpleChannel[Any]] = channels(id)
+  def getChannelRef(id: UUID): AtomicReference[BufferedChannel[Any]] = channels(id)
 
 }

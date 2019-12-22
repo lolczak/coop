@@ -93,7 +93,7 @@ class CoopScheduler(poolSize: Int) {
 
             case SuspendedOnChannelCreation(size, deferred) =>
               val id = UUID.randomUUID()
-              val channel = new SimpleChannel[Any](id, size)
+              val channel = new BufferedChannel[Any](id, size)
               runtimeCtxRef.update { ctx =>
                 ctx
                   .insertChannel(id, channel)
@@ -106,17 +106,17 @@ class CoopScheduler(poolSize: Int) {
             case SuspendedOnChannelRead(id, deferred) =>
               val channelRef = runtimeCtxRef.get().getChannelRef(id)
               channelRef.modifyWith_[ReadCase] {
-                case channel if channel.queue.isEmpty && channel.writeWait.nonEmpty =>
-                  val (ch, (wFiber, wElem)) = channel.getFirstWaitingForWrite()
+                case channel if channel.buffer.isEmpty && channel.writerQueue.nonEmpty =>
+                  val (ch, (wFiber, wElem)) = channel.removeFirstWaitingForWrite()
                   ch -> EmptyQueueNonEmptyWaitingWriters(wFiber, wElem)
 
-                case channel if channel.queue.nonEmpty && channel.writeWait.isEmpty =>
+                case channel if channel.buffer.nonEmpty && channel.writerQueue.isEmpty =>
                   val (ch, elem) = channel.dequeue()
                   ch -> NonEmptyQueueEmptyWaitingWriters(elem)
 
-                case channel if channel.queue.nonEmpty && channel.writeWait.nonEmpty =>
+                case channel if channel.buffer.nonEmpty && channel.writerQueue.nonEmpty =>
                   val (ch, elem) = channel.dequeue()
-                  val (ch2, (wFiber, wElem)) = ch.getFirstWaitingForWrite()
+                  val (ch2, (wFiber, wElem)) = ch.removeFirstWaitingForWrite()
                   ch2.enqueue(wElem) -> NonEmptyQueueNonEmptyWaitingWriters(wFiber, elem)
 
                 case channel =>
@@ -164,14 +164,14 @@ class CoopScheduler(poolSize: Int) {
             case SuspendedOnChannelWrite(id, elem) =>
               val channelRef = runtimeCtxRef.get().getChannelRef(id)
               channelRef.modifyWith_[WriteCase] {
-                case channel if channel.readWait.nonEmpty =>
-                  val (ch, (reader, defVal)) = channel.getFirstWaitingForRead()
+                case channel if channel.readerQueue.nonEmpty =>
+                  val (ch, (reader, defVal)) = channel.removeFirstWaitingForRead()
                   ch -> NonEmptyWaitingReaders(reader, defVal)
 
-                case channel if channel.readWait.isEmpty && channel.queue.size < channel.queueLength =>
+                case channel if channel.readerQueue.isEmpty && channel.buffer.size < channel.bufferLength =>
                   channel.enqueue(elem) -> EmptyReadWaitAndQueueNotFull
 
-                case channel if channel.readWait.isEmpty && channel.queue.size >= channel.queueLength =>
+                case channel if channel.readerQueue.isEmpty && channel.buffer.size >= channel.bufferLength =>
                   channel.waitForWrite(elem, fiber) -> EmptyReadWaitAndQueueFull
 
               } match {
