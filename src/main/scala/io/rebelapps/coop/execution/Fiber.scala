@@ -9,7 +9,7 @@ import io.rebelapps.coop.execution.stack.Frame
 import scala.concurrent.{Future, Promise}
 
 /**
- * Represents execution of coroutine.
+ * Represents execution of coroutine. It is a mutable object.
  *
  * @param coroutine
  * @tparam A

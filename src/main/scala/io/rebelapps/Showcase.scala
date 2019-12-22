@@ -10,6 +10,9 @@ import scala.concurrent.duration._
 
 object Showcase extends App {
 
+  val scheduler = new CoopScheduler(1)
+  scheduler.start()
+
   val BufSize = 0
 
   val GenMsg = 1000000
@@ -46,8 +49,8 @@ object Showcase extends App {
 
   val start = System.currentTimeMillis()
 
-  val future1 = CoopScheduler.run(fiber1 map (_ + 5))
-  val future2 = CoopScheduler.run(fiber2 map(_ + 5))
+  val future1 = scheduler.run(fiber1 map (_ + 5))
+  val future2 = scheduler.run(fiber2 map(_ + 5))
 
   val result1 = Await.result(future1, 100 seconds)
   val result2 = Await.result(future2, 100 seconds)
@@ -59,7 +62,7 @@ object Showcase extends App {
   println(result1)
   println(result2)
 
-  CoopScheduler.shutdown()
+  scheduler.shutdown()
 
   require(result1 == -726379959)
   require(result2 == 33)
