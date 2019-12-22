@@ -6,7 +6,7 @@ import scala.collection.immutable.Queue
 
 case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
                       ready: Queue[Fiber[Any]] = Queue.empty,
-                      suspended: Map[UUID, Fiber[Any]] = Map.empty,
+                      suspended: Set[Fiber[Any]] = Set.empty,
                       channels: Map[UUID, SimpleChannel[Any]] = Map.empty) {
 
   def enqueueReady(fiber: Fiber[Any]): RuntimeCtx = {
@@ -22,13 +22,12 @@ case class RuntimeCtx(running: Set[Fiber[Any]] = Set.empty,
 
   def removeRunning(fiber: Fiber[Any]): RuntimeCtx = this.copy(running = running - fiber)
 
-  def removeSuspended(requestId: UUID): (RuntimeCtx, Fiber[Any]) = {
-    val fiber = suspended(requestId)
-    this.copy(suspended = suspended - requestId) -> fiber
+  def removeSuspended(fiber: Fiber[Any]): RuntimeCtx = {
+    this.copy(suspended = suspended - fiber)
   }
 
-  def addSuspended(requestId: UUID, fiber: Fiber[Any]): RuntimeCtx = {
-    this.copy(suspended = suspended + (requestId -> fiber))
+  def addSuspended(fiber: Fiber[Any]): RuntimeCtx = {
+    this.copy(suspended = suspended + fiber)
   }
 
   def upsertChannel(id: UUID, channel: SimpleChannel[Any]): RuntimeCtx = {

@@ -18,7 +18,13 @@ class CoopScheduler(poolSize: Int) {
 
   private val resumeCount = new Semaphore(0)
 
-  def start(): Unit = (1 to poolSize) foreach { _ => pool.execute(() => runLoop()) }
+  @volatile
+  private var running = false
+
+  def start(): Unit = {
+    running = true
+    (1 to poolSize) foreach { _ => pool.execute(() => runLoop()) }
+  }
 
   def run[A](coroutine: Coop[A]): Future[A] = {
     val fiber = Fiber[Any](coroutine)
@@ -35,6 +41,7 @@ class CoopScheduler(poolSize: Int) {
   def runLoop(): Unit = {
     do {
       resumeCount.acquire()
+      if (!running) return
       runtimeCtxRef.modifyWhen(_.hasReadyFibers()) { _.moveFirstReadyToRunning() } match {
         case None =>
           println("nothing to do")
@@ -60,21 +67,18 @@ class CoopScheduler(poolSize: Int) {
               runtimeCtxRef.update { ctx =>
                 ctx
                   .removeRunning(fiber)
-                  .addSuspended(fiber.id, fiber)
+                  .addSuspended(fiber)
               }
               go {
                 case Left(ex) => throw ex
                 case Right(result) =>
-//                  pool.execute { () =>
-                    runtimeCtxRef.update { ctx =>
-                      ctx
-                        .removeSuspended(fiber.id)
-                        ._1
-                        .enqueueReady(fiber)
-                    }
-                    deferred.fill(result)
-                    tryResume()
-//                  }
+                  deferred.fill(result)
+                  runtimeCtxRef.update { ctx =>
+                    ctx
+                      .removeSuspended(fiber)
+                      .enqueueReady(fiber)
+                  }
+                  tryResume()
               }
 
             case CreateFiber(coroutine) =>
@@ -182,6 +186,10 @@ class CoopScheduler(poolSize: Int) {
     } while (true)
   }
 
-  def shutdown(): Unit = pool.shutdown()
+  def shutdown(): Unit = {
+    running = false
+    resumeCount.release(poolSize)
+    pool.shutdown()
+  }
 
 }
