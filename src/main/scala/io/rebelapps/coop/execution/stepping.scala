@@ -12,7 +12,7 @@ object stepping {
    * @param fiber
    * @return left when flow can be processed further, right if flow is suspended or terminated
    */
-  def step(fiber: Fiber[Any]): Either[Fiber[Any], Result] = {
+  def step(fiber: Fiber[Any]): Either[Fiber[Any], Exit] = {
     fiber.coroutine match {
       case defVal: DeferredValue[_] if defVal.isEmpty =>
         throw new IllegalStateException("Cannot eval empty deferred")
@@ -20,7 +20,7 @@ object stepping {
       case defVal: DeferredValue[_] =>
         val value = defVal.value
         if (fiber.stack.empty()) {
-          Return(value).asRight
+          Finished(value).asRight
         } else {
           val Continuation(f) = fiber.stack.pop()
           fiber.updateFlow(f(value)).asLeft
@@ -28,7 +28,7 @@ object stepping {
 
       case Pure(value) =>
         if (fiber.stack.empty()) {
-          Return(value).asRight
+          Finished(value).asRight
         } else {
           val Continuation(f) = fiber.stack.pop()
           fiber.updateFlow(f(value)).asLeft
@@ -44,7 +44,7 @@ object stepping {
       case Async(go) =>
         val defVal = DeferredValue[Any]
         fiber.updateFlow(defVal)
-        Suspended(go, defVal).asRight
+        AsyncWait(go, defVal).asRight
 
       case CreateChannel(size) =>
         val defVal = DeferredValue[SimpleChannel[Any]]

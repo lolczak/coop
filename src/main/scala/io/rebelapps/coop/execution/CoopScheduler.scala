@@ -19,11 +19,11 @@ object CoopScheduler {
   def run[A](coroutine: Coop[A]): Future[A] = {
     val fiber = Fiber[Any](coroutine)
     runtimeCtxRef.update(_.enqueueReady(fiber))
-    tryAwakeCoroutine()
+    tryResume()
     fiber.getFuture.asInstanceOf[Future[A]]
   }
 
-  private def tryAwakeCoroutine(count: Int = 1): Unit = {
+  private def tryResume(count: Int = 1): Unit = {
     require(count > 0)
     (1 to count) foreach { _ => pool.execute(() => runLoop()) }
   }
@@ -35,7 +35,7 @@ object CoopScheduler {
 
       case Some((_, fiber)) =>
         @tailrec
-        def go(fiber: Fiber[Any]): Result = {
+        def go(fiber: Fiber[Any]): Exit = {
           val maybeResult = stepping.step(fiber)
           maybeResult match {
             case Left(next)    => go(next)
@@ -46,11 +46,11 @@ object CoopScheduler {
         val result = go(fiber)
 
         result match {
-          case Return(value) =>
+          case Finished(value) =>
             runtimeCtxRef.update(_.removeRunning(fiber))
             fiber.complete(value)
 
-          case Suspended(go, deferred) =>
+          case AsyncWait(go, deferred) =>
             runtimeCtxRef.update { ctx =>
               ctx
                 .removeRunning(fiber)
@@ -67,7 +67,7 @@ object CoopScheduler {
                       .enqueueReady(fiber)
                   }
                   deferred.fill(result)
-                  tryAwakeCoroutine()
+                  tryResume()
                 }
             }
 
@@ -78,7 +78,7 @@ object CoopScheduler {
                 .enqueueReady(fiber)
             }
             run(coroutine)
-            tryAwakeCoroutine() //wakes creator
+            tryResume() //wakes creator
 
           case ChannelCreation(size, deferred) =>
             val id = UUID.randomUUID()
@@ -90,7 +90,7 @@ object CoopScheduler {
                 .enqueueReady(fiber)
             }
             deferred.fill(channel)
-            tryAwakeCoroutine() //wakes channel creator
+            tryResume() //wakes channel creator
 
           case ChannelRead(id, deferred) =>
             val channel = runtimeCtxRef.get().getChannel(id)
@@ -104,7 +104,7 @@ object CoopScheduler {
                   .removeRunning(fiber)
                   .enqueueReady(fiber)
               }
-              tryAwakeCoroutine(2) //wakes reader and writer
+              tryResume(2) //wakes reader and writer
             } else if (channel.queue.nonEmpty) {
               val (ch, elem) = channel.dequeue()
               deferred.fill(elem)
@@ -122,9 +122,9 @@ object CoopScheduler {
                     .upsertChannel(channel.id, currentChannel)
                     .enqueueReady(wFiber)
                 }
-                tryAwakeCoroutine() //wakes writer
+                tryResume() //wakes writer
               }
-              tryAwakeCoroutine() //wakes trader
+              tryResume() //wakes trader
             } else {
               val ch = channel.waitForRead(fiber, deferred)
               runtimeCtxRef.update { ctx =>
@@ -132,7 +132,7 @@ object CoopScheduler {
                   .upsertChannel(channel.id, ch)
                   .removeRunning(fiber)
               }
-              tryAwakeCoroutine() //wakes writer
+              tryResume() //wakes writer
             }
 
           case ChannelWrite(id, elem) =>
@@ -165,7 +165,7 @@ object CoopScheduler {
                 }
               }
             }
-            tryAwakeCoroutine()//wakes reader
+            tryResume()//wakes reader
 
           case _ =>
             println("imposible")
