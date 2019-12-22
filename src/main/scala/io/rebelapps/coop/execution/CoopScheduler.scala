@@ -9,6 +9,7 @@ import io.rebelapps.coop.execution.atomic._
 
 import scala.annotation.tailrec
 import scala.concurrent.Future
+import CoopScheduler._
 
 class CoopScheduler(poolSize: Int) {
 
@@ -103,11 +104,6 @@ class CoopScheduler(poolSize: Int) {
               tryResume() //resume channel creator
 
             case ChannelRead(id, deferred) =>
-              sealed trait ReadCase
-              case class EmptyQueueNonEmptyWaitingWriters(writer: Fiber[Any], elem: Any) extends ReadCase
-              case class NonEmptyQueueEmptyWaitingWriters(elem: Any) extends ReadCase
-              case class NonEmptyQueueNonEmptyWaitingWriters(writer: Fiber[Any], elem: Any) extends ReadCase
-              case object BlockOnRead extends ReadCase
               val channelRef = runtimeCtxRef.get().getChannelRef(id)
               channelRef.modifyWith_[ReadCase] {
                 case channel if channel.queue.isEmpty && channel.writeWait.nonEmpty =>
@@ -166,10 +162,6 @@ class CoopScheduler(poolSize: Int) {
               }
 
             case ChannelWrite(id, elem) =>
-              sealed trait WriteCase
-              case class NonEmptyWaitingReaders(reader: Fiber[Any], deferred: DeferredValue[Any]) extends WriteCase
-              case object EmptyReadWaitAndQueueNotFull extends WriteCase
-              case object EmptyReadWaitAndQueueFull extends WriteCase
               val channelRef = runtimeCtxRef.get().getChannelRef(id)
               channelRef.modifyWith_[WriteCase] {
                 case channel if channel.readWait.nonEmpty =>
@@ -223,5 +215,20 @@ class CoopScheduler(poolSize: Int) {
     resumeCount.release(poolSize)
     pool.shutdown()
   }
+
+}
+
+object CoopScheduler {
+
+  sealed trait ReadCase
+  case class EmptyQueueNonEmptyWaitingWriters(writer: Fiber[Any], elem: Any)    extends ReadCase
+  case class NonEmptyQueueEmptyWaitingWriters(elem: Any)                        extends ReadCase
+  case class NonEmptyQueueNonEmptyWaitingWriters(writer: Fiber[Any], elem: Any) extends ReadCase
+  case object BlockOnRead                                                       extends ReadCase
+
+  sealed trait WriteCase
+  case class NonEmptyWaitingReaders(reader: Fiber[Any], deferred: DeferredValue[Any]) extends WriteCase
+  case object EmptyReadWaitAndQueueNotFull                                            extends WriteCase
+  case object EmptyReadWaitAndQueueFull                                               extends WriteCase
 
 }
