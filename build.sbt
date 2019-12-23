@@ -1,4 +1,4 @@
-name := "coop"
+name := "csp4s"
 organization := "io.rebelapps"
 crossScalaVersions := Seq("2.11.12", "2.12.8")
 
@@ -20,7 +20,7 @@ libraryDependencies ++= Seq(
   "com.chuusai" %% "shapeless" % shapelessVersion
 ) ++ testLibs
 
-lazy val `coop` = project in file(".")
+lazy val `csp4s` = project in file(".")
 
 addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.10.1")
 
